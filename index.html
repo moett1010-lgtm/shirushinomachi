@@ -679,6 +679,8 @@ function reverseGeocode(lat,lng){
 }
 
 function setupWithLocation(lat,lng){
+  currentLat = lat;
+  currentLng = lng;
   document.getElementById('geoPrompt').style.display='none';
   document.getElementById('locLabel').textContent='取得中…';
   initMap(lat,lng);
@@ -695,6 +697,45 @@ function useDefaultLocation(){
   document.getElementById('locLabel').textContent=DEFAULT.label;
   document.getElementById('geoPrompt').style.display='none';
   initMap(DEFAULT.lat,DEFAULT.lng);
+}
+
+/* ═══════════════════════════════════
+   SUPABASE 接続設定
+═══════════════════════════════════ */
+function getSbConfig(){
+  return{url:localStorage.getItem('sb_app_url')||'',key:localStorage.getItem('sb_app_key')||''};
+}
+async function sbPost(table,body){
+  const{url,key}=getSbConfig();if(!url||!key)return null;
+  const r=await fetch(url+'/rest/v1/'+table,{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'return=representation'},body:JSON.stringify(body)});
+  return r.ok?await r.json():null;
+}
+async function getOrCreateUser(){
+  let uid=localStorage.getItem('shirushi_uid');
+  if(uid)return uid;
+  const res=await sbPost('users',{});
+  uid=(res&&res[0])?res[0].id:('local_'+Math.random().toString(36).slice(2));
+  localStorage.setItem('shirushi_uid',uid);return uid;
+}
+function toAreaCode(lat,lng){
+  const h=new Date().getHours();
+  return h>=22||h<6?'G'+Math.floor(lat*200)+'_'+Math.floor(lng*200):'G'+Math.floor(lat*1000)+'_'+Math.floor(lng*1000);
+}
+function getTimeSlot(){const h=new Date().getHours();return h>=5&&h<11?'morning':h>=11&&h<16?'day':h>=16&&h<19?'evening':'night';}
+function checkDailyLimit(){const k='sp_'+new Date().toDateString();return{ok:parseInt(localStorage.getItem(k)||'0')<2};}
+function incrementDailyPost(){const k='sp_'+new Date().toDateString();localStorage.setItem(k,String(parseInt(localStorage.getItem(k)||'0')+1));}
+function saveToLocalArchive(post){const arr=JSON.parse(localStorage.getItem('shirushi_archive')||'[]');arr.unshift({...post,savedAt:new Date().toISOString()});if(arr.length>200)arr.pop();localStorage.setItem('shirushi_archive',JSON.stringify(arr));}
+const F_KEY_APP='shirushi_word_filter',M_KEY_APP='shirushi_filter_msg';
+const DEF_WORDS_APP={ja:['死ね','殺す','消えろ','うざい','きもい','死にたい','消えたい','自殺','自傷'],en:['die','kill','hate','loser','worthless','self-harm','suicide']};
+const DEF_MSG_APP={main:'ちょっと疲れてるみたい。\n自分を労って過ごしてね。',sub:'このしるしは、あなただけのアーカイブに残っています。'};
+function checkPostText(text){
+  if(!text)return{blocked:false};
+  const words=JSON.parse(localStorage.getItem(F_KEY_APP)||'null')||DEF_WORDS_APP;
+  const msg=JSON.parse(localStorage.getItem(M_KEY_APP)||'null')||DEF_MSG_APP;
+  const lower=text.toLowerCase();
+  for(const w of(words.ja||[])){if(text.includes(w))return{blocked:true,word:w,message:msg};}
+  for(const w of(words.en||[])){if(lower.includes(w.toLowerCase()))return{blocked:true,word:w,message:msg};}
+  return{blocked:false};
 }
 
 /* ═══════════════════════════════════
@@ -729,7 +770,83 @@ function shapeSVG(s,c,big){
   };
   return m[s]||m.ring;
 }
-function doPost(){document.getElementById('done-icon').innerHTML=shapeSVG(curShape,curColor,true);goTo('s-done');}
+async function doPost(){
+  const text = document.getElementById('ptxt').value.trim();
+
+  // 1日2投稿チェック
+  const limit = checkDailyLimit();
+  if(!limit.ok){
+    showFilterMessage(
+      '今日のしるしは、もう届けられました。',
+      'また明日、気持ちが動いたときに。'
+    );
+    return;
+  }
+
+  // 禁止ワードチェック
+  const check = checkPostText(text);
+  if(check.blocked){
+    const msg = check.message || DEF_MSG_APP;
+    showFilterMessage(msg.main, msg.sub);
+    // 非公開で保存（本人のアーカイブには残す）
+    await savePost(text, false);
+    incrementDailyPost();
+    return;
+  }
+
+  // 通常投稿
+  await savePost(text, true);
+  incrementDailyPost();
+  document.getElementById('done-icon').innerHTML=shapeSVG(curShape,curColor,true);
+  goTo('s-done');
+}
+
+async function savePost(text, isPublic){
+  const uid = await getOrCreateUser();
+  const areaCode = (currentLat && currentLng)
+    ? toAreaCode(currentLat, currentLng)
+    : 'UNKNOWN';
+  const post = {
+    user_id:         uid,
+    color_code:      curColor,
+    shape:           curShape,
+    text_content:    text || null,
+    time_slot:       getTimeSlot(),
+    area_code:       areaCode,
+    is_public:       isPublic,
+    public_expires_at: isPublic
+      ? new Date(Date.now() + 24*60*60*1000).toISOString()
+      : null,
+    resonance_count: 0,
+  };
+  // Supabaseに保存
+  await sbPost('shirushi_posts', post);
+  // ローカルアーカイブにも保存
+  saveToLocalArchive({...post, blocked: !isPublic});
+}
+
+function showFilterMessage(main, sub){
+  // 全画面やわらかメッセージオーバーレイ
+  const existing = document.getElementById('filter-overlay');
+  if(existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'filter-overlay';
+  el.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    background:var(--deep,#2C4A3E);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:32px;text-align:center;
+    animation:fadeUp .5s ease both;
+  `;
+  el.innerHTML = `
+    <div style="font-size:32px;margin-bottom:20px;opacity:.7">🍃</div>
+    <div style="font-family:'Noto Serif JP',serif;font-size:18px;color:#F5F0E8;line-height:1.85;letter-spacing:.06em;margin-bottom:16px;white-space:pre-line">${main.replace(/</g,'&lt;')}</div>
+    <div style="font-size:12px;color:rgba(180,204,186,.6);letter-spacing:.08em;line-height:1.7">${sub.replace(/</g,'&lt;')}</div>
+    <div style="margin-top:36px;font-size:11px;color:rgba(180,204,186,.35);font-family:'DM Mono',monospace">画面をタップして戻る</div>
+  `;
+  el.addEventListener('click', ()=>{ el.style.animation='none'; el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); });
+  document.body.appendChild(el);
+}
 
 /* ═══════════════════════════════════
    ARCHIVE
@@ -746,8 +863,21 @@ function showMemo(el,text,color,shape){
 }
 
 /* ═══════════════════════════════════
+   APP SUPABASE CONFIG
+   アプリ初回起動時にSupabaseを設定
+═══════════════════════════════════ */
+function initAppSupabase(){
+  const url = localStorage.getItem('sb_app_url');
+  const key = localStorage.getItem('sb_app_key');
+  if(!url || !key){
+    console.info('[しるしのまち] Supabase未設定。localStorage.setItem("sb_app_url","YOUR_URL") で設定できます。');
+  }
+}
+
+/* ═══════════════════════════════════
    BOOT
 ═══════════════════════════════════ */
+initAppSupabase();
 applyTheme(curTheme);
 
 if('geolocation' in navigator){
