@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>しるしのまち</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&family=Noto+Serif+JP:wght@300;400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{
+  font-family:'Noto Sans JP',sans-serif;
+  background:#8AA8B4;
+  display:flex;justify-content:center;align-items:flex-start;
+  min-height:100vh;padding:32px 16px 64px;
+}
+.phone{
+  width:390px;height:844px;border-radius:50px;overflow:hidden;position:relative;
+  box-shadow:0 48px 120px rgba(0,0,0,0.38),0 0 0 1px rgba(255,255,255,0.15);
+}
+.screen{
+  position:absolute;inset:0;opacity:0;pointer-events:none;
+  transition:opacity 0.38s ease;
+}
+.screen.active{opacity:1;pointer-events:all;}
+
+#s-home{background:#C2D8D0;}
+#map{position:absolute;inset:0;width:100%;height:100%;z-index:3;}
+
+.leaflet-control-zoom,
+.leaflet-control-attribution{display:none!important;}
+.leaflet-container{background:transparent!important;}
+
+/* Greyscale tiles — color comes from #mapOverlay sitting inside #map above tile pane */
+.leaflet-tile-pane{
+  filter:saturate(0.04) brightness(1.02) contrast(0.8);
+}
+
+/* Overlay injected inside #map via JS — sits above tiles, below markers
+   Leaflet z-index: tile pane=200, overlay pane=400, marker pane=600
+   We use z-index 300 so it's above tiles but below markers */
+#mapOverlay{
+  position:absolute;inset:0;z-index:300;pointer-events:none;
+  mix-blend-mode:multiply;
+  transition:background 1.8s ease;
+}
+
+/* Blur layer behind everything */
+.map-blur{
+  position:absolute;inset:0;z-index:2;pointer-events:none;
+}
+
+.map-top{
+  position:absolute;top:52px;left:0;right:0;padding:0 18px;
+  display:flex;justify-content:space-between;align-items:center;z-index:10;
+}
+.loc-chip{
+  background:rgba(245,241,234,0.94);backdrop-filter:blur(16px);
+  border-radius:24px;padding:8px 15px;
+  display:flex;align-items:center;gap:7px;
+  font-size:12px;color:#2C4A3E;letter-spacing:0.05em;
+  box-shadow:0 2px 14px rgba(0,0,0,0.1);
+}
+.loc-dot{width:9px;height:9px;border-radius:50%;background:#D4826A;flex-shrink:0;animation:ldot 2.2s ease-in-out infinite;}
+@keyframes ldot{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.time-badge{
+  background:rgba(245,241,234,0.94);backdrop-filter:blur(16px);
+  border-radius:24px;padding:7px 14px;
+  font-size:11px;letter-spacing:0.06em;color:#2C4A3E;
+  box-shadow:0 2px 14px rgba(0,0,0,0.1);
+  transition:all 1s ease;
+}
+
+.refresh-flash{position:absolute;inset:0;z-index:20;pointer-events:none;}
+.refresh-flash.flash{animation:doFlash 0.55s ease both;}
+@keyframes doFlash{
+  0%{background:rgba(255,255,255,0);}35%{background:rgba(255,255,255,0.46);}100%{background:rgba(255,255,255,0);}
+}
+
+/* ── YOU MARKER — pure white soft glow, no border ── */
+.you-wrap{position:relative;display:flex;align-items:center;justify-content:center;width:90px;height:90px;}
+.you-core{width:16px;height:16px;border-radius:50%;background:white;position:absolute;z-index:3;box-shadow:0 2px 12px rgba(255,255,255,0.9),0 0 0 2px rgba(255,255,255,0.5);}
+.you-g1{position:absolute;width:36px;height:36px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,0.72) 0%,rgba(255,255,255,0) 68%);animation:gr1 2.8s ease-in-out infinite;}
+.you-g2{position:absolute;width:62px;height:62px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,0.28) 0%,rgba(255,255,255,0) 70%);animation:gr2 2.8s ease-in-out infinite;}
+.you-g3{position:absolute;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,0.1) 0%,rgba(255,255,255,0) 65%);animation:gr3 2.8s ease-in-out infinite;}
+@keyframes gr1{0%,100%{transform:scale(0.9);opacity:0.7;}50%{transform:scale(1.1);opacity:1;}}
+@keyframes gr2{0%,100%{transform:scale(0.85);opacity:0.5;}50%{transform:scale(1.15);opacity:0.9;}}
+@keyframes gr3{0%,100%{transform:scale(0.8);opacity:0.28;}50%{transform:scale(1.2);opacity:0.7;}}
+
+/* ── SHIRUSHI MARKER — circular bubble ── */
+.sm-wrap{position:relative;display:flex;flex-direction:column;align-items:center;cursor:pointer;animation:mIn 0.55s cubic-bezier(0.34,1.56,0.64,1) both;}
+@keyframes mIn{from{opacity:0;transform:scale(0.2) translateY(14px);}to{opacity:1;transform:scale(1) translateY(0);}}
+.sm-bubble{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 18px rgba(0,0,0,0.18);position:relative;}
+.sm-pulse{position:absolute;inset:-7px;border-radius:50%;border:2px solid;opacity:0;animation:mpulse 3.2s ease-out infinite;}
+.sm-pulse2{position:absolute;inset:-14px;border-radius:50%;border:1.5px solid;opacity:0;animation:mpulse 3.2s 1s ease-out infinite;}
+@keyframes mpulse{0%{transform:scale(0.82);opacity:0.55;}65%{transform:scale(1.25);opacity:0;}100%{transform:scale(1.25);opacity:0;}}
+.sm-tail{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;margin-top:-1px;opacity:0.88;}
+.leaflet-marker-icon{background:none!important;border:none!important;}
+
+/* ── POPUP — anchored near marker via JS transform ── */
+.spop{
+  position:absolute;z-index:50;
+  background:#F5F0E8;border-radius:18px;
+  padding:16px 16px 13px;width:252px;
+  box-shadow:0 14px 50px rgba(0,0,0,0.15);
+  display:none;
+  /* anchor set by JS via left/top + transform */
+  transform-origin:bottom left;
+}
+.spop.vis{display:block;animation:pIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both;}
+@keyframes pIn{from{opacity:0;transform:scale(0.82) translateY(10px);}to{opacity:1;transform:scale(1) translateY(0);}}
+.spop-top{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+.spop-icon{flex-shrink:0;width:36px;height:36px;display:flex;align-items:center;justify-content:center;}
+.spop-msg{font-size:14px;color:#2C4A3E;letter-spacing:0.04em;line-height:1.55;}
+.spop-bot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(44,74,62,0.09);padding-top:9px;}
+.spop-time{font-size:12px;color:rgba(44,74,62,0.48);letter-spacing:0.04em;}
+.spop-res{font-size:12px;color:rgba(44,74,62,0.48);letter-spacing:0.04em;cursor:pointer;padding:2px 6px;border-radius:6px;transition:all 0.2s;}
+.spop-res:hover{color:#D4826A;}
+.spop-res.done{color:#D4826A;}
+.spop-x{position:absolute;top:10px;right:10px;background:rgba(44,74,62,0.07);border:none;border-radius:50%;width:24px;height:24px;font-size:10px;color:rgba(44,74,62,0.55);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+/* Tail pointer — direction set by JS class */
+.spop-ptr{position:absolute;left:20px;bottom:-8px;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:9px solid #F5F0E8;}
+.spop-ptr.up{top:-8px;bottom:auto;border-top:none;border-bottom:9px solid #F5F0E8;}
+
+/* ── GEO PROMPT ── */
+.geo-prompt{
+  position:absolute;inset:0;z-index:100;
+  background:rgba(196,218,210,0.97);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:48px 36px;text-align:center;gap:20px;
+}
+.geo-prompt h2{font-size:18px;color:#2C4A3E;letter-spacing:0.08em;font-weight:400;}
+.geo-prompt p{font-size:13px;color:rgba(44,74,62,0.68);line-height:2;letter-spacing:0.04em;}
+.geo-btn{padding:14px 36px;border:none;border-radius:32px;background:#2C4A3E;color:white;font-family:'Noto Sans JP',sans-serif;font-size:14px;letter-spacing:0.1em;cursor:pointer;}
+.geo-skip{font-size:12px;color:rgba(44,74,62,0.4);text-decoration:underline dotted;cursor:pointer;margin-top:-8px;}
+
+.map-loading{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:rgba(200,220,212,0.88);transition:opacity 0.6s ease;}
+.map-loading.hidden{opacity:0;pointer-events:none;}
+.spin{width:32px;height:32px;border-radius:50%;border:3px solid rgba(44,74,62,0.15);border-top-color:#2C4A3E;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ══════════════════════════════
+   POST
+══════════════════════════════ */
+#s-post{background:linear-gradient(160deg,#BDD4DC 0%,#C8D8C4 52%,#D0CCC0 100%);}
+.post-inner{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:68px 22px 96px;}
+.post-inner::-webkit-scrollbar{display:none;}
+.pq{font-size:19px;color:#2C4A3E;letter-spacing:0.06em;margin-bottom:16px;}
+.pinput{background:rgba(245,241,234,0.93);border-radius:18px;padding:16px 18px 12px;margin-bottom:22px;box-shadow:0 2px 16px rgba(0,0,0,0.07);}
+.ptarea{width:100%;background:transparent;border:none;outline:none;font-family:'Noto Sans JP',sans-serif;font-size:14px;font-weight:300;color:#2C3E50;line-height:1.92;letter-spacing:0.04em;resize:none;min-height:82px;}
+.ptarea::placeholder{color:#A8B8B4;}
+.slabel{font-size:13px;color:#4A6058;letter-spacing:0.06em;margin-bottom:12px;}
+
+/* Shapes row */
+.shapes-row{display:flex;gap:10px;margin-bottom:22px;overflow-x:auto;padding-bottom:4px;align-items:center;}
+.shapes-row::-webkit-scrollbar{display:none;}
+.shp{flex-shrink:0;width:50px;height:50px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:10px;transition:transform 0.2s ease,opacity 0.2s ease,background 0.2s ease;opacity:0.68;background:transparent;}
+.shp.on{opacity:1;transform:scale(1.08);background:rgba(255,255,255,0.55);}
+.shp svg{overflow:visible;}
+
+/* 7 colors — single row, fits 390px */
+.colors-row{display:flex;gap:8px;margin-bottom:26px;justify-content:center;}
+.cdot{width:38px;height:38px;border-radius:50%;cursor:pointer;border:3px solid transparent;box-shadow:0 2px 8px rgba(0,0,0,0.12);transition:all 0.22s ease;flex-shrink:0;}
+.cdot.on{border-color:white;transform:scale(1.22);box-shadow:0 5px 16px rgba(0,0,0,0.22);}
+
+.rec-btn{width:100%;padding:16px;margin-bottom:18px;background:#2C3E50;color:white;border:none;border-radius:32px;font-family:'Noto Sans JP',sans-serif;font-size:14px;letter-spacing:0.14em;cursor:pointer;box-shadow:0 4px 20px rgba(44,62,80,0.24);transition:all 0.3s ease;}
+.rec-btn:hover{background:#1E2E3C;transform:translateY(-1px);}
+.pnote{font-size:12px;color:rgba(44,74,62,0.52);line-height:2;text-align:center;letter-spacing:0.04em;}
+.ppol{font-size:12px;color:rgba(44,74,62,0.38);text-align:center;margin-top:8px;text-decoration:underline dotted;cursor:pointer;letter-spacing:0.04em;}
+
+/* ══════════════════════════════
+   DONE
+══════════════════════════════ */
+#s-done{background:linear-gradient(160deg,#BDD4DC 0%,#D0CCBC 100%);cursor:pointer;}
+.done-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 52px;text-align:center;user-select:none;}
+.done-icon{width:90px;height:90px;border-radius:50%;background:rgba(127,168,190,0.13);display:flex;align-items:center;justify-content:center;margin-bottom:32px;animation:fadeUp 0.7s ease both;}
+.done-msg{font-family:'Noto Serif JP',serif;font-size:19px;font-weight:300;color:#2C4A3E;line-height:1.9;letter-spacing:0.1em;margin-bottom:28px;animation:fadeUp 0.7s 0.2s ease both;}
+.done-sub{font-size:13px;color:rgba(44,74,62,0.58);line-height:2;letter-spacing:0.04em;animation:fadeUp 0.7s 0.4s ease both;}
+.done-hint{position:absolute;bottom:40px;left:0;right:0;text-align:center;font-size:11px;color:rgba(44,74,62,0.3);letter-spacing:0.06em;animation:fadeUp 0.7s 0.9s ease both;}
+
+/* ══════════════════════════════
+   ARCHIVE
+══════════════════════════════ */
+#s-archive{background:linear-gradient(160deg,#BDD4DC 0%,#C8D4C0 100%);}
+.arc-inner{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:68px 18px 100px;}
+.arc-inner::-webkit-scrollbar{display:none;}
+.arc-h{font-size:18px;color:#2C4A3E;letter-spacing:0.06em;margin-bottom:18px;padding:0 4px;}
+.acard{background:rgba(245,241,234,0.93);border-radius:22px;padding:20px;box-shadow:0 3px 18px rgba(0,0,0,0.07);margin-bottom:16px;}
+.actitle{font-size:12px;color:rgba(44,74,62,0.52);letter-spacing:0.06em;text-align:center;margin-bottom:14px;}
+.cal-mo{text-align:center;font-size:15px;color:#2C4A3E;letter-spacing:0.06em;margin-bottom:12px;}
+.cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;}
+.cal-hd{font-size:10px;color:rgba(44,74,62,0.4);padding:4px 0;}
+.cal-c{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:rgba(44,74,62,0.58);border-radius:50%;position:relative;}
+.cal-c.tap{cursor:pointer;transition:background 0.18s;}
+.cal-c.tap:hover{background:rgba(44,74,62,0.07);}
+.cal-c.hd::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;}
+.dc::after{background:#D4826A;}.gc::after{background:#C9A84C;}.bc::after{background:#7FA8BE;}
+.cal-memo{border-radius:14px;padding:14px 14px 12px;margin-top:10px;background:white;border-left:4px solid;display:none;}
+.cal-memo.show{display:block;animation:fadeUp 0.28s ease both;}
+.cal-memo-row{display:flex;align-items:flex-start;gap:12px;}
+.cal-memo-icon{flex-shrink:0;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+.cal-memo-text{font-size:13px;color:#2C4A3E;line-height:1.75;font-weight:300;white-space:pre-line;flex:1;}
+.wc{height:56px;border-radius:10px;overflow:hidden;}
+.wsvg{width:100%;height:100%;}
+
+/* ══════════════════════════════
+   NAV
+══════════════════════════════ */
+.bnav{
+  position:absolute;bottom:0;left:0;right:0;height:82px;
+  background:rgba(240,237,230,0.96);backdrop-filter:blur(20px);
+  border-top:1px solid rgba(255,255,255,0.32);
+  display:flex;justify-content:space-around;align-items:center;
+  padding:0 24px 10px;z-index:30;
+}
+.nbtn{width:56px;height:56px;background:rgba(245,241,234,0.9);border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.09);transition:all 0.25s ease;color:#2C4A3E;}
+.nbtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
+.nbtn.on{background:#2C4A3E;color:white;}
+.nbtn:hover{transform:scale(1.07);}
+.nbtn:active{transform:scale(0.96);}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+
+<!-- ════════ HOME ════════ -->
+<div class="screen active" id="s-home">
+  <div class="map-blur"></div>
+  <!-- #map contains: tiles + overlay (z300) + markers (z600) — overlay sits between tiles and markers -->
+  <div id="map">
+    <div id="mapOverlay"></div>
+  </div>
+  <div class="map-loading" id="mapLoading"><div class="spin"></div></div>
+  <div class="refresh-flash" id="flash"></div>
+
+  <div class="map-top">
+    <div class="loc-chip"><div class="loc-dot"></div><span id="locLabel">現在地を取得中…</span></div>
+    <div class="time-badge" id="timeBadge">昼</div>
+  </div>
+
+  <!-- Single floating popup — positioned near clicked marker -->
+  <div class="spop" id="spop">
+    <button class="spop-x" onclick="closePopup(event)">✕</button>
+    <div class="spop-top">
+      <div class="spop-icon" id="spop-icon"></div>
+      <div class="spop-msg" id="spop-msg"></div>
+    </div>
+    <div class="spop-bot">
+      <span class="spop-time" id="spop-time"></span>
+      <span class="spop-res" id="spop-res" onclick="resonate(this)">共鳴する</span>
+    </div>
+    <div class="spop-ptr" id="spop-ptr"></div>
+  </div>
+
+  <!-- Geo permission -->
+  <div class="geo-prompt" id="geoPrompt" style="display:none;">
+    <h2>現在地を使いますか？</h2>
+    <p>あなたの街の<br>「しるし」を表示するために<br>位置情報を使用します。</p>
+    <button class="geo-btn" onclick="requestGeo()">現在地を使う</button>
+    <span class="geo-skip" onclick="useDefaultLocation()">代官山で試す</span>
+  </div>
+
+  <div class="bnav" id="home-nav">
+    <button class="nbtn on" onclick="goHome()"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
+    <button class="nbtn" onclick="goPost()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+    <button class="nbtn" onclick="goArchive()"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+  </div>
+</div>
+
+<!-- ════════ POST ════════ -->
+<div class="screen" id="s-post">
+  <div class="post-inner">
+    <div class="pq">今、なにを感じてる？</div>
+    <div class="pinput">
+      <textarea class="ptarea" id="ptxt"
+        placeholder="今日はひさしぶりに歩いた道。&#10;昔のことを思い出した。"
+        maxlength="50"></textarea>
+    </div>
+
+    <div class="slabel">しるしを添える</div>
+    <div class="shapes-row">
+      <div class="shp on" onclick="pickShape(this,'ring')">
+        <svg viewBox="-2 -2 52 52" width="48" height="48"><circle cx="24" cy="24" r="18" fill="none" id="si-ring" stroke="#D4826A" stroke-width="7"/></svg>
+      </div>
+      <div class="shp" onclick="pickShape(this,'sq')">
+        <svg viewBox="0 0 48 48" width="48" height="48"><rect x="6" y="6" width="36" height="36" rx="5" id="si-sq" fill="#D4826A"/></svg>
+      </div>
+      <div class="shp" onclick="pickShape(this,'tri')">
+        <svg viewBox="0 0 48 48" width="48" height="48"><polygon points="24,5 46,44 2,44" id="si-tri" fill="#D4826A"/></svg>
+      </div>
+      <div class="shp" onclick="pickShape(this,'wave')">
+        <svg viewBox="-2 -2 56 28" width="52" height="24"><path d="M2,13 Q10,3 18,13 Q26,23 34,13 Q42,3 50,13" fill="none" id="si-wave" stroke="#D4826A" stroke-width="5.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="shp" onclick="pickShape(this,'lines')">
+        <svg viewBox="0 0 48 48" width="48" height="48"><line x1="15" y1="8" x2="15" y2="40" id="si-l1" stroke="#D4826A" stroke-width="5.5" stroke-linecap="round"/><line x1="33" y1="8" x2="33" y2="40" id="si-l2" stroke="#D4826A" stroke-width="5.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="shp" onclick="pickShape(this,'arch')">
+        <svg viewBox="0 0 48 48" width="48" height="48"><path d="M6,42 L6,22 A18,18 0 0,1 42,22 L42,42" fill="none" id="si-arch" stroke="#D4826A" stroke-width="5.5" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+
+    <div class="slabel">感情の温度</div>
+    <!-- 7 colors, centered single row -->
+    <div class="colors-row">
+      <div class="cdot" style="background:#C85040" onclick="pickColor(this,'#C85040')"></div>
+      <div class="cdot on" style="background:#D4826A" onclick="pickColor(this,'#D4826A')"></div>
+      <div class="cdot" style="background:#C9A84C" onclick="pickColor(this,'#C9A84C')"></div>
+      <div class="cdot" style="background:#8CC870" onclick="pickColor(this,'#8CC870')"></div>
+      <div class="cdot" style="background:#7FA8BE" onclick="pickColor(this,'#7FA8BE')"></div>
+      <div class="cdot" style="background:#7888BC" onclick="pickColor(this,'#7888BC')"></div>
+      <div class="cdot" style="background:#7A8A92" onclick="pickColor(this,'#7A8A92')"></div>
+    </div>
+
+    <button class="rec-btn" onclick="doPost()">記録する</button>
+    <div class="pnote">投稿は1日２回まで。<br>24時間のみ公開され、<br>その後はあなたのみアーカイブから<br>見返すことができます。</div>
+    <div class="ppol">倫理・安全設計ポリシー</div>
+  </div>
+  <div class="bnav">
+    <button class="nbtn" onclick="goHome()"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
+    <button class="nbtn on"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+    <button class="nbtn" onclick="goArchive()"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+  </div>
+</div>
+
+<!-- ════════ DONE ════════ -->
+<div class="screen" id="s-done" onclick="goHome()">
+  <div class="done-inner">
+    <div class="done-icon" id="done-icon"></div>
+    <div class="done-msg">しるしが風に乗って、<br>誰かの一日と<br>すれ違いました</div>
+    <div class="done-sub">今日はあと１回<br>しるしを記録できます。<br><br><span style="font-size:11px;opacity:0.5;text-decoration:underline dotted;cursor:pointer;">倫理・安全設計ポリシー</span></div>
+  </div>
+  <div class="done-hint">どこかをタップするとホームに戻ります</div>
+</div>
+
+<!-- ════════ ARCHIVE ════════ -->
+<div class="screen" id="s-archive">
+  <div class="arc-inner">
+    <div class="arc-h">私のしるし</div>
+    <div class="acard">
+      <div class="cal-mo">４月</div>
+      <div class="cal-g">
+        <div class="cal-hd">月</div><div class="cal-hd">火</div><div class="cal-hd">水</div><div class="cal-hd">木</div><div class="cal-hd">金</div><div class="cal-hd">土</div><div class="cal-hd">日</div>
+        <div class="cal-c">4</div><div class="cal-c">5</div><div class="cal-c">6</div>
+        <div class="cal-c tap hd dc" onclick="showMemo(this,'今日はひさしぶりに歩いた道。\n昔のことを思い出した。','#D4826A','tri')">7</div>
+        <div class="cal-c tap hd gc" onclick="showMemo(this,'なんとなく、空がきれいだった。','#C9A84C','ring')">8</div>
+        <div class="cal-c">9</div>
+        <div class="cal-c tap hd bc" onclick="showMemo(this,'静かな朝だった。','#7FA8BE','wave')">10</div>
+        <div class="cal-c">11</div><div class="cal-c">12</div><div class="cal-c">13</div>
+        <div class="cal-c tap hd dc" onclick="showMemo(this,'少し疲れた一日だった。','#D4826A','sq')">14</div>
+        <div class="cal-c">15</div><div class="cal-c">16</div><div class="cal-c">17</div>
+      </div>
+      <div class="cal-memo" id="cmemo">
+        <div class="cal-memo-row">
+          <div class="cal-memo-icon" id="cmemo-icon"></div>
+          <div class="cal-memo-text" id="cmemo-text"></div>
+        </div>
+      </div>
+    </div>
+    <div class="acard">
+      <div class="actitle">今週の感情の温度変化</div>
+      <div class="wc">
+        <svg class="wsvg" viewBox="0 0 320 56" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#B8CDD9" stop-opacity="0.74"/><stop offset="100%" stop-color="#B8CDD9" stop-opacity="0.12"/></linearGradient>
+            <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#C9A84C" stop-opacity="0.62"/><stop offset="100%" stop-color="#C9A84C" stop-opacity="0.08"/></linearGradient>
+            <linearGradient id="g3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#D4826A" stop-opacity="0.68"/><stop offset="100%" stop-color="#D4826A" stop-opacity="0.1"/></linearGradient>
+          </defs>
+          <path d="M0,12 Q55,4 110,18 Q165,32 220,12 Q268,0 320,16 L320,56 L0,56Z" fill="url(#g1)"/>
+          <path d="M0,30 Q50,20 105,34 Q160,46 220,30 Q270,18 320,34 L320,56 L0,56Z" fill="url(#g2)"/>
+          <path d="M0,44 Q68,36 138,46 Q200,54 262,42 L320,48 L320,56 L0,56Z" fill="url(#g3)"/>
+        </svg>
+      </div>
+    </div>
+    <div class="acard">
+      <div class="actitle">今週のしるしの内訳</div>
+      <div style="display:flex;justify-content:center;">
+        <svg viewBox="0 0 120 120" width="130" height="130">
+          <circle r="35" cx="60" cy="60" fill="transparent" stroke="#B8CDD9" stroke-width="46" stroke-dasharray="98.9 61.4" stroke-dashoffset="0" transform="rotate(-90 60 60)"/>
+          <circle r="35" cx="60" cy="60" fill="transparent" stroke="#C9A84C" stroke-width="46" stroke-dasharray="65.9 94.2" stroke-dashoffset="-98.9" transform="rotate(-90 60 60)"/>
+          <circle r="35" cx="60" cy="60" fill="transparent" stroke="#D4826A" stroke-width="46" stroke-dasharray="54.9 105.3" stroke-dashoffset="-164.9" transform="rotate(-90 60 60)"/>
+          <text x="42" y="54" font-size="7" fill="#3D5A6E" font-family="Noto Sans JP">45%</text>
+          <text x="72" y="44" font-size="7" fill="#3D5A6E" font-family="Noto Sans JP">30%</text>
+          <text x="72" y="72" font-size="7" fill="#3D5A6E" font-family="Noto Sans JP">25%</text>
+        </svg>
+      </div>
+      <div style="display:flex;justify-content:center;gap:14px;margin-top:6px;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#5A7070;"><div style="width:9px;height:9px;border-radius:50%;background:#B8CDD9;"></div>静か</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#5A7070;"><div style="width:9px;height:9px;border-radius:50%;background:#C9A84C;"></div>穏やか</div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#5A7070;"><div style="width:9px;height:9px;border-radius:50%;background:#D4826A;"></div>揺れてる</div>
+      </div>
+    </div>
+  </div>
+  <div class="bnav">
+    <button class="nbtn" onclick="goHome()"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
+    <button class="nbtn" onclick="goPost()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+    <button class="nbtn on"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+  </div>
+</div>
+
+</div><!-- /phone -->
+
+<script>
+/* ═══════════════════════════════════
+   TIME THEME
+   5:00–15:59 → 昼, 16:00–17:59 → 夕, 18:00–4:59 → 夜
+═══════════════════════════════════ */
+const THEMES = {
+  // 昼: minty celadon — left panel of reference image
+  day:{
+    label:'昼',
+    // Solid color wash: roads show as slightly darker version of same hue
+    // Tile must be near-greyscale so this color dominates
+    overlay:'rgba(178,214,204,0.82)',
+    bg:'#B8D4CA',
+    navBg:'rgba(232,242,238,0.96)', badge:'rgba(242,248,244,0.94)', badgeCol:'#2C4A3E',
+  },
+  // 夕: warm sandy peach — middle panel
+  dusk:{
+    label:'夕',
+    overlay:'rgba(230,196,148,0.84)',
+    bg:'#E0C090',
+    navBg:'rgba(242,228,206,0.96)', badge:'rgba(248,236,216,0.94)', badgeCol:'#5A3820',
+  },
+  // 夜: deep slate blue — right panel
+  night:{
+    label:'夜',
+    overlay:'rgba(58,88,118,0.88)',
+    bg:'#2E4A62',
+    navBg:'rgba(24,38,54,0.97)', badge:'rgba(34,52,72,0.95)', badgeCol:'#9EC4DC',
+  },
+};
+
+function themeKey(){
+  const h=new Date().getHours();
+  if(h>=5&&h<16) return 'day';
+  if(h>=16&&h<18) return 'dusk';
+  return 'night';
+}
+let curTheme=themeKey();
+
+function applyTheme(k){
+  curTheme=k;
+  const t=THEMES[k];
+  // Background color of phone element (shows before map loads)
+  document.getElementById('s-home').style.background=t.bg;
+  // Color wash overlay — multiply blend lets road lines show as same-hue darks
+  document.getElementById('mapOverlay').style.background=t.overlay;
+  // Nav + chips
+  document.querySelectorAll('.bnav').forEach(n=>n.style.background=t.navBg);
+  const chip=document.querySelector('.loc-chip');
+  chip.style.background=t.badge; chip.style.color=t.badgeCol;
+  const badge=document.getElementById('timeBadge');
+  badge.style.background=t.badge; badge.style.color=t.badgeCol;
+  badge.textContent=t.label;
+}
+setInterval(()=>{const k=themeKey();if(k!==curTheme)applyTheme(k);},60000);
+
+/* ═══════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════ */
+let curScreen='s-home';
+const ALL=['s-home','s-post','s-done','s-archive'];
+function goTo(id){
+  ALL.forEach(s=>document.getElementById(s).classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  curScreen=id;
+  if(id==='s-home'&&leafMap) setTimeout(()=>leafMap.invalidateSize(),80);
+}
+function goHome(){
+  const was=(curScreen==='s-home');
+  closePopup();
+  goTo('s-home');
+  if(was){
+    const f=document.getElementById('flash');
+    f.classList.remove('flash'); void f.offsetWidth; f.classList.add('flash');
+    if(userLatLng) leafMap.setView(userLatLng,16,{animate:true});
+    reScatterMarkers();
+  }
+}
+function goPost(){goTo('s-post');}
+function goArchive(){goTo('s-archive');document.getElementById('cmemo').classList.remove('show');}
+
+/* ═══════════════════════════════════
+   MAP — Leaflet + CartoDB Positron No Labels
+   (no street text visible, clean abstract style)
+═══════════════════════════════════ */
+let leafMap=null, userLatLng=null, youMarker=null;
+let shiruMarkers=[];
+
+const SAMPLE=[
+  {dlat:0.0008, dlng:0.0012, color:'#D4826A', shape:'tri',   msg:'今日は少し背中が軽い',              time:'午前中のすれ違い'},
+  {dlat:-0.0005,dlng:0.0016, color:'#C9A84C', shape:'ring',  msg:'風が少し冷たかった。それでも歩いた。', time:'2時間前のすれ違い'},
+  {dlat:0.0014, dlng:-0.0007,color:'#7FA8BE', shape:'wave',  msg:'何かが変わる気がする',               time:'昼頃のすれ違い'},
+  {dlat:-0.001, dlng:-0.0018,color:'#C9A84C', shape:'ring',  msg:'昔のことを思い出した。\nここを歩くたびに。',time:'今日のすれ違い'},
+  {dlat:0.0005, dlng:-0.002, color:'#8FAF9A', shape:'sq',    msg:'静かな朝だった',                    time:'朝のすれ違い'},
+];
+
+function initMap(lat,lng){
+  if(leafMap) return;
+  leafMap=L.map('map',{
+    center:[lat,lng], zoom:17,
+    zoomControl:false, attributionControl:false,
+    scrollWheelZoom:false, dragging:true, doubleClickZoom:false,
+  });
+
+  /* CartoDB Positron No-Labels — roads & blocks, zero text labels */
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',{
+    subdomains:'abcd', maxZoom:19, opacity:1,
+  }).addTo(leafMap);
+
+  setTimeout(()=>document.getElementById('mapLoading').classList.add('hidden'),2200);
+
+  placeYouMarker(lat,lng);
+  placeShiruMarkers(lat,lng);
+
+  /* Tap anywhere on map → close popup */
+  leafMap.on('click', e=>{
+    // Only close if not clicking a marker (marker click stops propagation)
+    closePopup();
+  });
+}
+
+/* ── YOU marker ── */
+function placeYouMarker(lat,lng){
+  userLatLng=[lat,lng];
+  const html=`<div class="you-wrap"><div class="you-g3"></div><div class="you-g2"></div><div class="you-g1"></div><div class="you-core"></div></div>`;
+  const icon=L.divIcon({html,className:'',iconSize:[90,90],iconAnchor:[45,45]});
+  if(youMarker) youMarker.remove();
+  youMarker=L.marker([lat,lng],{icon,zIndexOffset:1000,interactive:false}).addTo(leafMap);
+}
+
+/* ── Shape HTML inside marker bubble ── */
+function bubbleShapeHtml(shape,color){
+  // Reference image: shapes float directly, with a very soft rounded-rect background
+  // Sizes are bolder / larger than before
+  const ic={
+    ring:`<svg viewBox="0 0 30 30" width="24" height="24" overflow="visible"><circle cx="15" cy="15" r="10" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="5"/></svg>`,
+    sq:  `<svg viewBox="0 0 28 28" width="22" height="22"><rect x="3" y="3" width="22" height="22" rx="4" fill="rgba(255,255,255,0.94)"/></svg>`,
+    tri: `<svg viewBox="0 0 30 28" width="24" height="22"><polygon points="15,2 29,26 1,26" fill="rgba(255,255,255,0.95)"/></svg>`,
+    wave:`<svg viewBox="0 0 38 20" width="30" height="16"><path d="M2,10 Q8,3 14,10 Q20,17 26,10 Q32,3 36,10" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="3.2" stroke-linecap="round"/></svg>`,
+    lines:`<svg viewBox="0 0 28 28" width="22" height="22"><line x1="9" y1="4" x2="9" y2="24" stroke="rgba(255,255,255,0.94)" stroke-width="4" stroke-linecap="round"/><line x1="19" y1="4" x2="19" y2="24" stroke="rgba(255,255,255,0.94)" stroke-width="4" stroke-linecap="round"/></svg>`,
+    arch:`<svg viewBox="0 0 28 28" width="22" height="22"><path d="M3,24 L3,14 A11,11 0 0,1 25,14 L25,24" fill="none" stroke="rgba(255,255,255,0.94)" stroke-width="4" stroke-linecap="round"/></svg>`,
+  };
+  const delay=(Math.random()*1.2).toFixed(2);
+  const delay2=(Math.random()*1.2+0.9).toFixed(2);
+  return `
+    <div class="sm-wrap" style="animation-delay:${(Math.random()*0.5).toFixed(2)}s">
+      <div class="sm-bubble" style="background:${color};">
+        <div class="sm-pulse"  style="border-color:${color};animation-delay:${delay}s"></div>
+        <div class="sm-pulse2" style="border-color:${color};animation-delay:${delay2}s"></div>
+        ${ic[shape]||ic.ring}
+      </div>
+      <div class="sm-tail" style="border-top-color:${color};"></div>
+    </div>`;
+}
+
+/* ── Place shirushi markers ── */
+function placeShiruMarkers(lat,lng){
+  shiruMarkers.forEach(m=>m.remove()); shiruMarkers=[];
+  SAMPLE.forEach((d,i)=>{
+    const icon=L.divIcon({html:bubbleShapeHtml(d.shape,d.color),className:'',iconSize:[46,54],iconAnchor:[23,54]});
+    const m=L.marker([lat+d.dlat, lng+d.dlng],{icon,zIndexOffset:500}).addTo(leafMap);
+    // Stop map click from firing when clicking marker
+    m.on('click', e=>{
+      L.DomEvent.stopPropagation(e);
+      openPopup(d, m);
+    });
+    shiruMarkers.push(m);
+  });
+}
+
+function reScatterMarkers(){
+  if(!userLatLng) return;
+  shiruMarkers.forEach(m=>m.remove()); shiruMarkers=[];
+  placeShiruMarkers(userLatLng[0],userLatLng[1]);
+}
+
+/* ═══════════════════════════════════
+   POPUP — anchored near the clicked marker
+   Calculates screen-space position from Latlng
+═══════════════════════════════════ */
+const POPUP_W=252, POPUP_H=120; // approx height
+
+function openPopup(data, leafMarker){
+  const pop=document.getElementById('spop');
+  const ptr=document.getElementById('spop-ptr');
+
+  // Fill content
+  document.getElementById('spop-msg').innerHTML=data.msg.replace(/\n/g,'<br>');
+  document.getElementById('spop-time').textContent=data.time;
+  const res=document.getElementById('spop-res');
+  res.textContent='共鳴する'; res.classList.remove('done');
+  document.getElementById('spop-icon').innerHTML=popShapeSVG(data.shape,data.color);
+
+  // Convert marker latlng → pixel coords within phone element
+  const markerPx=leafMap.latLngToContainerPoint(leafMarker.getLatLng());
+  // markerPx is relative to map container (= phone, since map fills phone)
+  // Marker iconAnchor is [23,54], so the tip of tail is at markerPx
+  const PHONE_W=390, PHONE_H=844;
+  const NAV_H=82;
+  const MARGIN=10;
+
+  let left=markerPx.x - 23; // align popup left edge near marker center
+  let top =markerPx.y - POPUP_H - 12; // above marker by default
+  let ptrUp=false;
+
+  // Clamp horizontally
+  if(left<MARGIN) left=MARGIN;
+  if(left+POPUP_W > PHONE_W-MARGIN) left=PHONE_W-MARGIN-POPUP_W;
+
+  // If too high (would go behind status bar), flip below marker
+  if(top < 110){
+    top=markerPx.y + 12; // below marker
+    ptrUp=true;
+  }
+  // Don't go below nav
+  if(top+POPUP_H > PHONE_H-NAV_H-MARGIN) top=PHONE_H-NAV_H-MARGIN-POPUP_H;
+
+  pop.style.left=left+'px';
+  pop.style.top=top+'px';
+  pop.style.transform='none';
+
+  // Tail pointer position: point toward marker center
+  const tailX = Math.max(14, Math.min(POPUP_W-22, markerPx.x - left));
+  ptr.style.left=tailX+'px';
+  ptr.className='spop-ptr'+(ptrUp?' up':'');
+
+  pop.classList.remove('vis');
+  void pop.offsetWidth;
+  pop.style.display='block';
+  pop.classList.add('vis');
+}
+
+function closePopup(e){
+  if(e) e.stopPropagation();
+  const pop=document.getElementById('spop');
+  pop.classList.remove('vis');
+  setTimeout(()=>{ if(!pop.classList.contains('vis')) pop.style.display='none'; },280);
+}
+
+function resonate(el){
+  el.classList.toggle('done');
+  el.textContent=el.classList.contains('done')?'共鳴しました ✓':'共鳴する';
+  if(el.classList.contains('done'))
+    el.animate([{transform:'scale(1)'},{transform:'scale(1.18)'},{transform:'scale(1)'}],{duration:300});
+}
+
+function popShapeSVG(s,c){
+  const m={
+    ring:`<svg viewBox="0 0 34 34" width="34" height="34"><circle cx="17" cy="17" r="11" fill="none" stroke="${c}" stroke-width="4.5"/></svg>`,
+    sq:  `<svg viewBox="0 0 30 30" width="30" height="30"><rect x="4" y="4" width="22" height="22" rx="3.5" fill="${c}"/></svg>`,
+    tri: `<svg viewBox="0 0 34 32" width="34" height="30"><polygon points="17,3 32,29 2,29" fill="${c}"/></svg>`,
+    wave:`<svg viewBox="0 0 40 24" width="40" height="22"><path d="M2,12 Q8,4 14,12 Q20,20 26,12 Q32,4 38,12" fill="none" stroke="${c}" stroke-width="3.2" stroke-linecap="round"/></svg>`,
+    lines:`<svg viewBox="0 0 30 34" width="26" height="30"><line x1="9" y1="4" x2="9" y2="30" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/><line x1="21" y1="4" x2="21" y2="30" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/></svg>`,
+    arch:`<svg viewBox="0 0 34 34" width="34" height="34"><path d="M5,30 L5,17 A12,12 0 0,1 29,17 L29,30" fill="none" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/></svg>`,
+  };
+  return m[s]||m.ring;
+}
+
+/* ═══════════════════════════════════
+   GEOLOCATION
+═══════════════════════════════════ */
+const DEFAULT={lat:35.6484,lng:139.7035,label:'渋谷区 代官山'};
+
+function reverseGeocode(lat,lng){
+  fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=ja`)
+    .then(r=>r.json())
+    .then(d=>{
+      const a=d.address||{};
+      const sub=a.suburb||a.neighbourhood||a.quarter||a.city_district||a.district||'現在地';
+      const city=a.city||a.town||a.county||'';
+      document.getElementById('locLabel').textContent=city?city+(sub!=='現在地'?' '+sub:''):sub;
+    })
+    .catch(()=>document.getElementById('locLabel').textContent='現在地');
+}
+
+function setupWithLocation(lat,lng){
+  currentLat = lat;
+  currentLng = lng;
+  document.getElementById('geoPrompt').style.display='none';
+  document.getElementById('locLabel').textContent='取得中…';
+  initMap(lat,lng);
+  reverseGeocode(lat,lng);
+}
+function requestGeo(){
+  navigator.geolocation.getCurrentPosition(
+    p=>setupWithLocation(p.coords.latitude,p.coords.longitude),
+    ()=>useDefaultLocation(),
+    {enableHighAccuracy:true,timeout:8000}
+  );
+}
+function useDefaultLocation(){
+  document.getElementById('locLabel').textContent=DEFAULT.label;
+  document.getElementById('geoPrompt').style.display='none';
+  initMap(DEFAULT.lat,DEFAULT.lng);
+}
+
+/* ═══════════════════════════════════
+   SUPABASE 接続設定
+═══════════════════════════════════ */
+function getSbConfig(){
+  return{url:localStorage.getItem('sb_app_url')||'',key:localStorage.getItem('sb_app_key')||''};
+}
+async function sbPost(table,body){
+  const{url,key}=getSbConfig();if(!url||!key)return null;
+  const r=await fetch(url+'/rest/v1/'+table,{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'return=representation'},body:JSON.stringify(body)});
+  return r.ok?await r.json():null;
+}
+async function getOrCreateUser(){
+  let uid=localStorage.getItem('shirushi_uid');
+  if(uid)return uid;
+  const res=await sbPost('users',{});
+  uid=(res&&res[0])?res[0].id:('local_'+Math.random().toString(36).slice(2));
+  localStorage.setItem('shirushi_uid',uid);return uid;
+}
+function toAreaCode(lat,lng){
+  const h=new Date().getHours();
+  return h>=22||h<6?'G'+Math.floor(lat*200)+'_'+Math.floor(lng*200):'G'+Math.floor(lat*1000)+'_'+Math.floor(lng*1000);
+}
+function getTimeSlot(){const h=new Date().getHours();return h>=5&&h<11?'morning':h>=11&&h<16?'day':h>=16&&h<19?'evening':'night';}
+function checkDailyLimit(){const k='sp_'+new Date().toDateString();return{ok:parseInt(localStorage.getItem(k)||'0')<2};}
+function incrementDailyPost(){const k='sp_'+new Date().toDateString();localStorage.setItem(k,String(parseInt(localStorage.getItem(k)||'0')+1));}
+function saveToLocalArchive(post){const arr=JSON.parse(localStorage.getItem('shirushi_archive')||'[]');arr.unshift({...post,savedAt:new Date().toISOString()});if(arr.length>200)arr.pop();localStorage.setItem('shirushi_archive',JSON.stringify(arr));}
+const F_KEY_APP='shirushi_word_filter',M_KEY_APP='shirushi_filter_msg';
+const DEF_WORDS_APP={ja:['死ね','殺す','消えろ','うざい','きもい','死にたい','消えたい','自殺','自傷'],en:['die','kill','hate','loser','worthless','self-harm','suicide']};
+const DEF_MSG_APP={main:'ちょっと疲れてるみたい。\n自分を労って過ごしてね。',sub:'このしるしは、あなただけのアーカイブに残っています。'};
+function checkPostText(text){
+  if(!text)return{blocked:false};
+  const words=JSON.parse(localStorage.getItem(F_KEY_APP)||'null')||DEF_WORDS_APP;
+  const msg=JSON.parse(localStorage.getItem(M_KEY_APP)||'null')||DEF_MSG_APP;
+  const lower=text.toLowerCase();
+  for(const w of(words.ja||[])){if(text.includes(w))return{blocked:true,word:w,message:msg};}
+  for(const w of(words.en||[])){if(lower.includes(w.toLowerCase()))return{blocked:true,word:w,message:msg};}
+  return{blocked:false};
+}
+
+/* ═══════════════════════════════════
+   POST
+═══════════════════════════════════ */
+let curColor='#D4826A', curShape='ring';
+const SID={ring:['si-ring'],sq:['si-sq'],tri:['si-tri'],wave:['si-wave'],lines:['si-l1','si-l2'],arch:['si-arch']};
+function applyPostColor(c){
+  Object.values(SID).flat().forEach(id=>{
+    const e=document.getElementById(id);if(!e)return;
+    if(e.getAttribute('fill')&&e.getAttribute('fill')!=='none') e.setAttribute('fill',c);
+    if(e.getAttribute('stroke')&&e.getAttribute('stroke')!=='none') e.setAttribute('stroke',c);
+  });
+}
+function pickShape(el,s){document.querySelectorAll('.shp').forEach(x=>x.classList.remove('on'));el.classList.add('on');curShape=s;}
+function pickColor(el,c){document.querySelectorAll('.cdot').forEach(d=>d.classList.remove('on'));el.classList.add('on');curColor=c;applyPostColor(c);}
+
+function shapeSVG(s,c,big){
+  const m={
+    ring: big?`<svg viewBox="0 0 56 56" width="56" height="56"><circle cx="28" cy="28" r="18" fill="none" stroke="${c}" stroke-width="6"/></svg>`
+              :`<svg viewBox="0 0 32 32" width="28" height="28"><circle cx="16" cy="16" r="10" fill="none" stroke="${c}" stroke-width="4"/></svg>`,
+    sq:   big?`<svg viewBox="0 0 56 56" width="56" height="56"><rect x="10" y="10" width="36" height="36" rx="5" fill="${c}"/></svg>`
+              :`<svg viewBox="0 0 32 32" width="28" height="28"><rect x="5" y="5" width="22" height="22" rx="3" fill="${c}"/></svg>`,
+    tri:  big?`<svg viewBox="0 0 56 56" width="56" height="56"><polygon points="28,8 50,48 6,48" fill="${c}"/></svg>`
+              :`<svg viewBox="0 0 32 32" width="28" height="28"><polygon points="16,4 30,28 2,28" fill="${c}"/></svg>`,
+    wave: big?`<svg viewBox="0 0 64 32" width="64" height="32"><path d="M4,16 Q14,4 24,16 Q34,28 44,16 Q54,4 60,16" fill="none" stroke="${c}" stroke-width="5" stroke-linecap="round"/></svg>`
+              :`<svg viewBox="0 0 38 20" width="34" height="18"><path d="M2,10 Q8,3 14,10 Q20,17 26,10 Q32,3 36,10" fill="none" stroke="${c}" stroke-width="3.5" stroke-linecap="round"/></svg>`,
+    lines:big?`<svg viewBox="0 0 56 56" width="56" height="56"><line x1="18" y1="10" x2="18" y2="46" stroke="${c}" stroke-width="5.5" stroke-linecap="round"/><line x1="38" y1="10" x2="38" y2="46" stroke="${c}" stroke-width="5.5" stroke-linecap="round"/></svg>`
+              :`<svg viewBox="0 0 32 32" width="28" height="28"><line x1="10" y1="6" x2="10" y2="26" stroke="${c}" stroke-width="4" stroke-linecap="round"/><line x1="22" y1="6" x2="22" y2="26" stroke="${c}" stroke-width="4" stroke-linecap="round"/></svg>`,
+    arch: big?`<svg viewBox="0 0 56 56" width="56" height="56"><path d="M8,46 L8,26 A20,20 0 0,1 48,26 L48,46" fill="none" stroke="${c}" stroke-width="5.5" stroke-linecap="round"/></svg>`
+              :`<svg viewBox="0 0 32 32" width="28" height="28"><path d="M4,28 L4,16 A12,12 0 0,1 28,16 L28,28" fill="none" stroke="${c}" stroke-width="4" stroke-linecap="round"/></svg>`,
+  };
+  return m[s]||m.ring;
+}
+async function doPost(){
+  const text = document.getElementById('ptxt').value.trim();
+
+  // 1日2投稿チェック
+  const limit = checkDailyLimit();
+  if(!limit.ok){
+    showFilterMessage(
+      '今日のしるしは、もう届けられました。',
+      'また明日、気持ちが動いたときに。'
+    );
+    return;
+  }
+
+  // 禁止ワードチェック
+  const check = checkPostText(text);
+  if(check.blocked){
+    const msg = check.message || DEF_MSG_APP;
+    showFilterMessage(msg.main, msg.sub);
+    // 非公開で保存（本人のアーカイブには残す）
+    await savePost(text, false);
+    incrementDailyPost();
+    return;
+  }
+
+  // 通常投稿
+  await savePost(text, true);
+  incrementDailyPost();
+  document.getElementById('done-icon').innerHTML=shapeSVG(curShape,curColor,true);
+  goTo('s-done');
+}
+
+async function savePost(text, isPublic){
+  const uid = await getOrCreateUser();
+  const areaCode = (currentLat && currentLng)
+    ? toAreaCode(currentLat, currentLng)
+    : 'UNKNOWN';
+  const post = {
+    user_id:         uid,
+    color_code:      curColor,
+    shape:           curShape,
+    text_content:    text || null,
+    time_slot:       getTimeSlot(),
+    area_code:       areaCode,
+    is_public:       isPublic,
+    public_expires_at: isPublic
+      ? new Date(Date.now() + 24*60*60*1000).toISOString()
+      : null,
+    resonance_count: 0,
+  };
+  // Supabaseに保存
+  await sbPost('shirushi_posts', post);
+  // ローカルアーカイブにも保存
+  saveToLocalArchive({...post, blocked: !isPublic});
+}
+
+function showFilterMessage(main, sub){
+  // 全画面やわらかメッセージオーバーレイ
+  const existing = document.getElementById('filter-overlay');
+  if(existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'filter-overlay';
+  el.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    background:var(--deep,#2C4A3E);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:32px;text-align:center;
+    animation:fadeUp .5s ease both;
+  `;
+  el.innerHTML = `
+    <div style="font-size:32px;margin-bottom:20px;opacity:.7">🍃</div>
+    <div style="font-family:'Noto Serif JP',serif;font-size:18px;color:#F5F0E8;line-height:1.85;letter-spacing:.06em;margin-bottom:16px;white-space:pre-line">${main.replace(/</g,'&lt;')}</div>
+    <div style="font-size:12px;color:rgba(180,204,186,.6);letter-spacing:.08em;line-height:1.7">${sub.replace(/</g,'&lt;')}</div>
+    <div style="margin-top:36px;font-size:11px;color:rgba(180,204,186,.35);font-family:'DM Mono',monospace">画面をタップして戻る</div>
+  `;
+  el.addEventListener('click', ()=>{ el.style.animation='none'; el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); });
+  document.body.appendChild(el);
+}
+
+/* ═══════════════════════════════════
+   ARCHIVE
+═══════════════════════════════════ */
+function showMemo(el,text,color,shape){
+  const m=document.getElementById('cmemo'),icon=document.getElementById('cmemo-icon'),txt=document.getElementById('cmemo-text');
+  if(m.classList.contains('show')&&m.dataset.d===el.textContent){m.classList.remove('show');return;}
+  m.style.borderLeftColor=color;
+  icon.style.background=color+'22';
+  icon.innerHTML=shapeSVG(shape,color,false);
+  txt.textContent=text;
+  m.classList.remove('show'); void m.offsetWidth; m.classList.add('show');
+  m.dataset.d=el.textContent;
+}
+
+/* ═══════════════════════════════════
+   APP SUPABASE CONFIG
+   アプリ初回起動時にSupabaseを設定
+═══════════════════════════════════ */
+function initAppSupabase(){
+  const url = localStorage.getItem('sb_app_url');
+  const key = localStorage.getItem('sb_app_key');
+  if(!url || !key){
+    console.info('[しるしのまち] Supabase未設定。localStorage.setItem("sb_app_url","YOUR_URL") で設定できます。');
+  }
+}
+
+/* ═══════════════════════════════════
+   BOOT
+═══════════════════════════════════ */
+initAppSupabase();
+applyTheme(curTheme);
+
+if('geolocation' in navigator){
+  navigator.permissions&&navigator.permissions.query({name:'geolocation'}).then(p=>{
+    if(p.state==='granted'){
+      navigator.geolocation.getCurrentPosition(
+        p=>setupWithLocation(p.coords.latitude,p.coords.longitude),
+        ()=>useDefaultLocation()
+      );
+    } else {
+      document.getElementById('geoPrompt').style.display='flex';
+    }
+  }).catch(()=>document.getElementById('geoPrompt').style.display='flex');
+} else {
+  useDefaultLocation();
+}
+</script>
+</body>
+</html>

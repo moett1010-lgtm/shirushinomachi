@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>しるしのまち — 管理ダッシュボード</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&family=Noto+Serif+JP:wght@300;400&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+:root{
+  --deep:#2C4A3E;--mid:#4A7A6A;--light:#B4CCBA;--cream:#F5F0E8;--cream2:#EDE8DF;
+  --bg:#EDEBE4;--card:#F8F5EF;--border:rgba(44,74,62,0.1);--text:#2A3228;--sub:#7A8C82;
+  --coral:#D4826A;--gold:#C9A84C;--blue:#7FA8BE;--green:#8FAF9A;--purple:#8888BC;
+  --mono:'DM Mono',monospace;--serif:'Noto Serif JP',serif;--sans:'Noto Sans JP',sans-serif;
+  --sb:216px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;display:flex;}
+
+/* SIDEBAR */
+.sidebar{width:var(--sb);min-height:100vh;background:var(--deep);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;overflow-y:auto;}
+.sb-logo{padding:26px 20px 18px;border-bottom:1px solid rgba(255,255,255,0.07);}
+.sb-appname{font-family:var(--serif);font-size:16px;font-weight:400;color:var(--cream);letter-spacing:.08em;line-height:1.45;}
+.sb-appsub{font-size:9.5px;color:var(--light);letter-spacing:.14em;margin-top:4px;opacity:.6;font-family:var(--mono);}
+.sb-conn{margin:12px 14px;border-radius:10px;padding:9px 13px;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);cursor:pointer;transition:background .2s;}
+.sb-conn:hover{background:rgba(255,255,255,.1);}
+.conn-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;transition:background .4s;}
+.conn-dot.live{background:#6BCB77;animation:pg 2.2s ease-in-out infinite;}
+.conn-dot.demo{background:var(--gold);}
+.conn-dot.err{background:var(--coral);}
+@keyframes pg{0%,100%{box-shadow:0 0 0 0 rgba(107,203,119,.4);}50%{box-shadow:0 0 0 5px rgba(107,203,119,0);}}
+.conn-lbl{font-size:11px;color:var(--light);letter-spacing:.05em;opacity:.85;flex:1;}
+.conn-cfg{font-size:10px;color:var(--light);opacity:.4;font-family:var(--mono);}
+.nav-group{padding:4px 10px;margin-top:4px;}
+.nav-lbl{font-size:8.5px;color:rgba(180,204,186,.38);letter-spacing:.18em;font-family:var(--mono);padding:8px 8px 4px;text-transform:uppercase;}
+.nav-btn{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;cursor:pointer;transition:background .18s;margin-bottom:1px;color:rgba(180,204,186,.65);font-size:12.5px;letter-spacing:.04em;border:none;background:transparent;width:100%;text-align:left;}
+.nav-btn:hover{background:rgba(255,255,255,.06);color:var(--cream);}
+.nav-btn.on{background:rgba(255,255,255,.12);color:var(--cream);}
+.nav-ico{width:15px;text-align:center;font-size:13px;flex-shrink:0;}
+.nav-badge{margin-left:auto;background:var(--coral);color:#fff;font-size:9px;font-family:var(--mono);border-radius:8px;padding:1px 6px;min-width:17px;text-align:center;}
+.sb-footer{margin-top:auto;padding:14px 16px 20px;border-top:1px solid rgba(255,255,255,.06);}
+.sb-ver{font-size:9.5px;color:rgba(180,204,186,.28);font-family:var(--mono);letter-spacing:.06em;}
+
+/* MAIN */
+.main{margin-left:var(--sb);flex:1;display:flex;flex-direction:column;min-height:100vh;}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:90;}
+.tb-left{display:flex;flex-direction:column;gap:1px;}
+.tb-title{font-size:14.5px;font-weight:500;color:var(--deep);letter-spacing:.04em;}
+.tb-sub{font-size:10.5px;color:var(--sub);letter-spacing:.04em;}
+.tb-right{display:flex;align-items:center;gap:9px;}
+.tb-date{font-family:var(--mono);font-size:10.5px;color:var(--sub);background:var(--cream2);padding:4px 11px;border-radius:20px;}
+.tb-btn{background:var(--deep);color:var(--cream);border:none;border-radius:20px;padding:6px 14px;font-size:11.5px;font-family:var(--sans);letter-spacing:.05em;cursor:pointer;transition:background .2s;}
+.tb-btn:hover{background:var(--mid);}
+.tb-btn.alt{background:var(--mid);}
+
+/* PAGES */
+.page{display:none;padding:24px 28px 52px;animation:fadeUp .35s ease both;}
+.page.on{display:block;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:18px 20px;position:relative;overflow:hidden;transition:transform .18s,box-shadow .18s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(44,74,62,.07);}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--acc,var(--deep));border-radius:15px 15px 0 0;}
+.kpi-lbl{font-size:10.5px;color:var(--sub);letter-spacing:.08em;margin-bottom:7px;}
+.kpi-val{font-size:30px;font-weight:300;color:var(--deep);line-height:1;font-family:var(--mono);margin-bottom:5px;}
+.kpi-delta{font-size:10.5px;font-family:var(--mono);}
+.up{color:#4D9A58;}.dn{color:var(--coral);}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:20px 22px;margin-bottom:16px;}
+.card-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.card-title{font-size:12.5px;font-weight:500;color:var(--deep);letter-spacing:.05em;}
+.card-meta{font-size:10.5px;color:var(--sub);font-family:var(--mono);}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+.g32{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:16px;}
+
+/* BARS */
+.bar-row{display:flex;align-items:center;gap:9px;margin-bottom:10px;}
+.bar-lbl{font-size:11px;color:var(--sub);width:52px;flex-shrink:0;text-align:right;}
+.bar-track{flex:1;background:var(--cream2);border-radius:6px;height:9px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:6px;transition:width 1.1s cubic-bezier(.34,1.56,.64,1);}
+.bar-pct{font-family:var(--mono);font-size:10.5px;color:var(--sub);width:34px;text-align:right;flex-shrink:0;}
+.emo-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;}
+.tbl th{font-size:9.5px;letter-spacing:.1em;color:var(--sub);text-align:left;padding:0 10px 9px;border-bottom:1px solid var(--border);font-weight:400;}
+.tbl td{font-size:12.5px;color:var(--text);padding:10px;border-bottom:1px solid rgba(44,74,62,.04);vertical-align:middle;}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:rgba(44,74,62,.018);}
+.mono{font-family:var(--mono);font-size:11px;color:var(--sub);}
+.chip{font-size:9.5px;font-family:var(--mono);letter-spacing:.04em;padding:2px 8px;border-radius:20px;display:inline-block;}
+.chip-live{background:rgba(77,154,88,.1);color:#3E8A4A;}
+.chip-exp{background:rgba(120,120,120,.09);color:#888;}
+.chip-flag{background:rgba(212,130,106,.11);color:var(--coral);}
+.del-btn{background:transparent;border:1px solid rgba(212,130,106,.28);color:var(--coral);border-radius:6px;padding:2px 8px;font-size:10.5px;cursor:pointer;transition:all .18s;font-family:var(--sans);}
+.del-btn:hover{background:var(--coral);color:#fff;}
+
+/* SHAPE ICON */
+.sh-icon{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+/* USERS */
+.user-row{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid rgba(44,74,62,.05);}
+.user-row:last-child{border-bottom:none;}
+.u-av{width:32px;height:32px;border-radius:50%;background:var(--deep);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--cream);font-family:var(--mono);flex-shrink:0;}
+.u-id{font-family:var(--mono);font-size:10.5px;color:var(--sub);}
+.u-stat{font-size:11.5px;color:var(--text);}
+.plan-free{background:rgba(44,74,62,.08);color:var(--mid);font-size:9.5px;font-family:var(--mono);padding:2px 8px;border-radius:10px;letter-spacing:.06em;}
+.plan-prem{background:rgba(201,168,76,.15);color:var(--gold);font-size:9.5px;font-family:var(--mono);padding:2px 8px;border-radius:10px;letter-spacing:.06em;}
+
+/* ALERTS */
+.alert{display:flex;align-items:flex-start;gap:11px;padding:12px 13px;border-radius:10px;background:rgba(212,130,106,.05);border:1px solid rgba(212,130,106,.13);margin-bottom:10px;}
+.alert-ico{font-size:15px;flex-shrink:0;margin-top:1px;}
+.alert-body{flex:1;font-size:11.5px;color:var(--text);line-height:1.6;}
+.alert-acts{display:flex;gap:7px;margin-top:7px;}
+.abtn{font-size:10.5px;font-family:var(--sans);padding:3px 10px;border-radius:6px;cursor:pointer;transition:all .18s;border:none;letter-spacing:.04em;}
+.abtn-del{background:rgba(212,130,106,.14);color:var(--coral);}
+.abtn-del:hover{background:var(--coral);color:#fff;}
+.abtn-ok{background:rgba(44,74,62,.09);color:var(--mid);}
+.abtn-ok:hover{background:var(--mid);color:#fff;}
+
+/* TOGGLE */
+.toggle{width:38px;height:21px;border-radius:11px;background:rgba(44,74,62,.15);position:relative;cursor:pointer;transition:background .25s;border:none;flex-shrink:0;}
+.toggle.on{background:var(--deep);}
+.toggle::after{content:'';position:absolute;top:2.5px;left:2.5px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .25s;box-shadow:0 1px 4px rgba(0,0,0,.18);}
+.toggle.on::after{transform:translateX(17px);}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border);gap:12px;}
+.setting-row:last-child{border-bottom:none;}
+.s-lbl{font-size:12.5px;color:var(--text);font-weight:500;margin-bottom:2px;}
+.s-desc{font-size:10.5px;color:var(--sub);line-height:1.55;}
+.ret-badge{font-family:var(--mono);font-size:10.5px;padding:3px 11px;border-radius:20px;background:rgba(44,74,62,.08);color:var(--mid);white-space:nowrap;flex-shrink:0;}
+
+/* ROADMAP */
+.rm-item{display:flex;align-items:flex-start;gap:13px;padding:13px 0;border-bottom:1px solid var(--border);}
+.rm-item:last-child{border-bottom:none;}
+.rm-phase{font-size:8.5px;font-family:var(--mono);letter-spacing:.09em;padding:2px 8px;border-radius:10px;flex-shrink:0;margin-top:2px;white-space:nowrap;}
+.ph-now{background:rgba(77,154,88,.12);color:#3E8A4A;}
+.ph-soon{background:rgba(201,168,76,.15);color:var(--gold);}
+.ph-later{background:rgba(127,168,190,.15);color:var(--blue);}
+.rm-title{font-size:12.5px;font-weight:500;color:var(--text);margin-bottom:3px;}
+.rm-desc{font-size:11px;color:var(--sub);line-height:1.55;}
+
+/* EXPORT */
+.exp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;}
+.exp-card{background:var(--cream2);border:1px solid var(--border);border-radius:11px;padding:16px;cursor:pointer;transition:all .18s;text-align:center;}
+.exp-card:hover{background:var(--card);transform:translateY(-2px);box-shadow:0 6px 20px rgba(44,74,62,.07);}
+.exp-ico{font-size:22px;margin-bottom:7px;}
+.exp-lbl{font-size:12px;color:var(--text);font-weight:500;margin-bottom:3px;}
+.exp-sub{font-size:10.5px;color:var(--sub);}
+
+/* MAP */
+.map-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:13px;}
+.ml-item{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--sub);}
+.ml-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(30,42,36,.55);z-index:500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
+.modal{background:var(--card);border-radius:20px;padding:30px 28px;width:480px;box-shadow:0 24px 80px rgba(0,0,0,.18);animation:fadeUp .3s ease both;}
+.modal-title{font-family:var(--serif);font-size:18px;color:var(--deep);margin-bottom:6px;font-weight:400;}
+.modal-sub{font-size:12px;color:var(--sub);line-height:1.6;margin-bottom:22px;}
+.field{margin-bottom:15px;}
+.field label{display:block;font-size:11px;color:var(--sub);letter-spacing:.07em;margin-bottom:5px;font-family:var(--mono);}
+.field input{width:100%;padding:9px 13px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:var(--mono);background:var(--cream2);color:var(--text);outline:none;transition:border .18s;}
+.field input:focus{border-color:var(--mid);}
+.field input::placeholder{color:rgba(120,140,130,.45);}
+.modal-note{font-size:10.5px;color:var(--sub);background:var(--cream2);border-radius:9px;padding:10px 13px;margin-bottom:20px;line-height:1.6;}
+.modal-note code{font-family:var(--mono);font-size:10px;background:rgba(44,74,62,.07);padding:1px 5px;border-radius:4px;}
+.modal-btns{display:flex;gap:9px;justify-content:flex-end;align-items:center;}
+.mbtn{border:none;border-radius:10px;padding:9px 18px;font-size:12.5px;font-family:var(--sans);cursor:pointer;transition:all .18s;}
+.mbtn-cancel{background:rgba(44,74,62,.08);color:var(--mid);}
+.mbtn-save{background:var(--deep);color:var(--cream);}
+.mbtn-save:hover{background:var(--mid);}
+.mbtn-demo{background:rgba(201,168,76,.15);color:#9A7A2A;margin-right:auto;font-size:11.5px;}
+
+/* DEMO BANNER */
+.demo-banner{background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.2);border-radius:10px;padding:10px 16px;margin-bottom:18px;display:flex;align-items:center;gap:9px;font-size:11.5px;color:#7A6018;}
+.demo-banner button{margin-left:auto;background:rgba(201,168,76,.2);border:none;border-radius:8px;padding:4px 12px;font-size:11px;cursor:pointer;color:#7A6018;font-family:var(--sans);}
+
+/* SCHEMA */
+.schema-blk{background:#1A2E24;border-radius:12px;padding:16px 18px;margin-top:14px;overflow-x:auto;}
+.schema-blk pre{font-family:var(--mono);font-size:11px;color:#A8D0B8;line-height:1.7;white-space:pre;}
+.kw{color:#7FA8BE;}.str{color:#C9A84C;}.cmt{color:rgba(168,208,184,.35);}
+
+/* TOAST */
+.toast{position:fixed;bottom:28px;right:28px;background:var(--deep);color:var(--cream);font-size:12.5px;letter-spacing:.04em;padding:11px 18px;border-radius:11px;box-shadow:0 8px 30px rgba(44,74,62,.28);z-index:9999;transform:translateY(18px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);pointer-events:none;}
+.toast.show{transform:translateY(0);opacity:1;}
+
+/* LOGIN SCREEN */
+.login-screen{position:fixed;inset:0;z-index:9000;background:var(--deep);display:flex;align-items:center;justify-content:center;flex-direction:column;}
+.login-screen.hidden{display:none;}
+.login-bg-marks{position:absolute;inset:0;overflow:hidden;pointer-events:none;opacity:.05;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:52px;font-size:48px;color:var(--cream);animation:bgDrift 18s ease-in-out infinite alternate;}
+@keyframes bgDrift{from{transform:translateY(0);}to{transform:translateY(-20px);}}
+.login-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:42px 40px 36px;width:420px;position:relative;z-index:1;backdrop-filter:blur(12px);animation:fadeUp .5s ease both;}
+.login-logo{font-family:var(--serif);font-size:22px;font-weight:400;color:var(--cream);letter-spacing:.1em;margin-bottom:4px;}
+.login-sub{font-size:11px;color:var(--light);opacity:.6;letter-spacing:.12em;font-family:var(--mono);margin-bottom:28px;}
+.login-field{margin-bottom:16px;}
+.login-field label{display:block;font-size:10.5px;color:var(--light);opacity:.65;letter-spacing:.1em;font-family:var(--mono);margin-bottom:7px;}
+.login-field input{width:100%;padding:11px 15px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:11px;font-size:14px;color:var(--cream);outline:none;transition:border .2s,background .2s;font-family:var(--sans);}
+.login-field input:focus{border-color:rgba(180,204,186,.45);background:rgba(255,255,255,.12);}
+.login-field input::placeholder{color:rgba(180,204,186,.3);}
+.login-btn{width:100%;margin-top:8px;padding:13px;background:var(--cream);color:var(--deep);border:none;border-radius:11px;font-size:14px;font-family:var(--sans);letter-spacing:.06em;font-weight:500;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.login-btn:hover:not(:disabled){background:var(--light);transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,0,0,.2);}
+.login-btn:disabled{opacity:.6;cursor:not-allowed;}
+.login-btn.loading::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.3) 50%,transparent 100%);animation:shimmer 1.2s infinite;}
+@keyframes shimmer{from{transform:translateX(-100%);}to{transform:translateX(100%);}}
+.login-err{font-size:11.5px;color:#FF9980;letter-spacing:.04em;margin-top:12px;text-align:center;min-height:18px;}
+/* lockout banner */
+.lockout-bar{background:rgba(212,130,106,.15);border:1px solid rgba(212,130,106,.25);border-radius:10px;padding:10px 14px;margin-top:14px;font-size:11.5px;color:#FF9980;text-align:center;display:none;}
+.lockout-bar.show{display:block;}
+/* attempt dots */
+.attempt-dots{display:flex;gap:6px;justify-content:center;margin-top:14px;}
+.attempt-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.15);transition:background .3s;}
+.attempt-dot.used{background:rgba(212,130,106,.7);}
+/* session info */
+.login-hint{margin-top:20px;padding-top:18px;border-top:1px solid rgba(255,255,255,.07);font-size:10.5px;color:var(--light);opacity:.4;text-align:center;font-family:var(--mono);letter-spacing:.04em;}
+/* password change modal */
+.pw-modal-bg{position:fixed;inset:0;background:rgba(20,32,26,.7);z-index:600;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.pw-modal-bg.hidden{display:none;}
+.pw-modal{background:var(--card);border-radius:18px;padding:28px 26px;width:380px;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:fadeUp .3s ease both;}
+.pw-modal-title{font-size:15px;font-weight:500;color:var(--deep);margin-bottom:5px;}
+.pw-modal-sub{font-size:11px;color:var(--sub);margin-bottom:20px;line-height:1.6;}
+.pw-strength{height:4px;border-radius:4px;margin-top:5px;transition:all .3s;background:var(--cream2);}
+.pw-strength-lbl{font-size:10px;font-family:var(--mono);color:var(--sub);margin-top:3px;}
+/* logout btn */
+.logout-btn{background:transparent;border:1px solid rgba(255,255,255,.12);color:var(--light);border-radius:20px;padding:4px 12px;font-size:10.5px;cursor:pointer;transition:all .18s;font-family:var(--sans);opacity:.65;margin-left:8px;}
+.logout-btn:hover{opacity:1;background:rgba(255,255,255,.08);}
+/* login log in sidebar footer */
+.login-log-item{font-size:9.5px;color:rgba(180,204,186,.35);font-family:var(--mono);letter-spacing:.04em;line-height:1.8;}
+
+/* FILTER BADGE SETUP */
+.filter-setup-card{
+  background:var(--card);border:1px solid var(--border);border-radius:15px;
+  padding:20px 22px;margin-bottom:16px;
+}
+.filter-tag{
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(44,74,62,.08);color:var(--mid);
+  border-radius:20px;padding:3px 10px;font-size:11.5px;
+  margin:3px;font-family:var(--mono);
+}
+.filter-tag .tag-del{
+  background:transparent;border:none;color:var(--sub);cursor:pointer;
+  font-size:13px;line-height:1;padding:0;transition:color .15s;
+}
+.filter-tag .tag-del:hover{color:var(--coral);}
+.tag-input{
+  width:100%;padding:9px 13px;border:1px solid var(--border);border-radius:10px;
+  font-size:13px;background:var(--cream2);color:var(--text);
+  outline:none;transition:border .18s;font-family:var(--sans);
+}
+.tag-input:focus{border-color:var(--mid);}
+.add-tag-btn{
+  background:var(--deep);color:var(--cream);border:none;
+  border-radius:10px;padding:9px 18px;font-size:12.5px;
+  font-family:var(--sans);cursor:pointer;transition:background .18s;
+  margin-top:10px;
+}
+.add-tag-btn:hover{background:var(--mid);}
+.filter-msg-preview{
+  background:var(--deep);border-radius:16px;padding:20px 22px;
+  margin-top:16px;position:relative;overflow:hidden;
+}
+.filter-msg-preview::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(circle at 30% 50%,rgba(180,204,186,.08) 0%,transparent 70%);
+}
+.filter-msg-title{font-size:10.5px;color:var(--light);opacity:.5;letter-spacing:.1em;font-family:var(--mono);margin-bottom:12px;}
+.filter-preview-inner{
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);
+  border-radius:12px;padding:16px 18px;
+}
+.filter-icon{font-size:22px;margin-bottom:8px;}
+.filter-msg-text{font-family:var(--serif);font-size:14.5px;color:var(--cream);line-height:1.7;letter-spacing:.04em;}
+.filter-msg-sub{font-size:11px;color:var(--light);opacity:.5;margin-top:8px;letter-spacing:.04em;}
+.filter-count-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:10.5px;font-family:var(--mono);
+  background:rgba(212,130,106,.12);color:var(--coral);
+  padding:3px 10px;border-radius:20px;
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen hidden" id="login-screen">
+  <div class="login-bg-marks">
+    △ ○ □ 〜 ‖ ∩ △ ○ □ 〜 ‖ ∩ △ ○ □ 〜 ‖ ∩
+    △ ○ □ 〜 ‖ ∩ △ ○ □ 〜 ‖ ∩ △ ○ □ 〜 ‖ ∩
+  </div>
+  <div class="login-card">
+    <div class="login-logo">しるしのまち</div>
+    <div class="login-sub">Admin Dashboard — 管理者専用</div>
+    <div class="login-field">
+      <label>PASSWORD</label>
+      <input type="password" id="login-pw" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter')doLogin()" autocomplete="current-password"/>
+    </div>
+    <button class="login-btn" onclick="doLogin()">ログイン</button>
+    <div class="login-err" id="login-err"></div>
+    <div class="lockout-bar" id="lockout-bar"></div>
+    <div class="attempt-dots">
+      <div class="attempt-dot" id="d0"></div>
+      <div class="attempt-dot" id="d1"></div>
+      <div class="attempt-dot" id="d2"></div>
+      <div class="attempt-dot" id="d3"></div>
+      <div class="attempt-dot" id="d4"></div>
+    </div>
+    <div class="login-hint">管理者専用 · 5回失敗で30分ロック · セッション有効期限8時間</div>
+  </div>
+</div>
+
+<!-- PASSWORD CHANGE MODAL -->
+<div class="pw-modal-bg hidden" id="pw-modal">
+  <div class="pw-modal">
+    <div class="pw-modal-title">パスワードを変更する</div>
+    <div class="pw-modal-sub">新しいパスワードは8文字以上を推奨します。記号・数字を含めるとより安全です。</div>
+    <div class="login-field" style="margin-bottom:12px">
+      <label style="color:var(--sub)">現在のパスワード</label>
+      <input type="password" id="cur-pw" placeholder="現在のパスワード" style="background:var(--cream2);color:var(--text);border:1px solid var(--border);"/>
+    </div>
+    <div class="login-field" style="margin-bottom:4px">
+      <label style="color:var(--sub)">新しいパスワード</label>
+      <input type="password" id="new-pw1" placeholder="新しいパスワード（8文字以上）" oninput="updatePwStrength(this.value)" style="background:var(--cream2);color:var(--text);border:1px solid var(--border);"/>
+    </div>
+    <div class="pw-strength" id="pw-strength-bar" style="width:0%"></div>
+    <div class="pw-strength-lbl" id="pw-strength-lbl"></div>
+    <div class="login-field" style="margin-top:12px;margin-bottom:12px">
+      <label style="color:var(--sub)">新しいパスワード（確認）</label>
+      <input type="password" id="new-pw2" placeholder="もう一度入力" style="background:var(--cream2);color:var(--text);border:1px solid var(--border);"/>
+    </div>
+    <div class="login-err" id="pw-change-err" style="color:var(--coral);margin-bottom:12px"></div>
+    <div style="display:flex;gap:9px;justify-content:flex-end">
+      <button class="mbtn mbtn-cancel" onclick="closePwModal()">キャンセル</button>
+      <button class="mbtn mbtn-save" onclick="savePwChange()">変更する</button>
+    </div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-appname">しるしのまち</div>
+    <div class="sb-appsub">Admin Dashboard v0.2</div>
+  </div>
+  <div class="sb-conn" onclick="openConfig()">
+    <div class="conn-dot demo" id="conn-dot"></div>
+    <span class="conn-lbl" id="conn-lbl">サンプルデータ</span>
+    <span class="conn-cfg">設定›</span>
+  </div>
+  <div class="nav-group">
+    <div class="nav-lbl">概要</div>
+    <button class="nav-btn on" onclick="nav('overview',this)"><span class="nav-ico">◎</span>ダッシュボード</button>
+    <button class="nav-btn" onclick="nav('posts',this)"><span class="nav-ico">△</span>投稿一覧<span class="nav-badge" id="bf">2</span></button>
+    <button class="nav-btn" onclick="nav('citymap',this)"><span class="nav-ico">〇</span>都市感情マップ</button>
+  </div>
+  <div class="nav-group">
+    <div class="nav-lbl">管理</div>
+    <button class="nav-btn" onclick="nav('users',this)"><span class="nav-ico">□</span>ユーザー管理</button>
+    <button class="nav-btn" onclick="nav('moderation',this)"><span class="nav-ico">∿</span>モデレーション<span class="nav-badge" id="bm">2</span></button>
+    <button class="nav-btn" onclick="nav('premium',this)"><span class="nav-ico">∩</span>プレミアム管理</button>
+  </div>
+  <div class="nav-group">
+    <div class="nav-lbl">設定</div>
+    <button class="nav-btn" onclick="nav('privacy',this)"><span class="nav-ico">‖</span>プライバシー設定</button>
+    <button class="nav-btn" onclick="nav('export',this)"><span class="nav-ico">◦</span>データエクスポート</button>
+    <button class="nav-btn" onclick="nav('schema',this)"><span class="nav-ico">≡</span>DBスキーマ</button>
+    <button class="nav-btn" onclick="nav('filter',this)"><span class="nav-ico">✦</span>禁止ワード設定</button>
+  </div>
+  <div class="sb-footer">
+    <div class="sb-ver" id="sb-ver">demo mode · Supabase未接続</div>
+    <div class="sb-ver" id="session-timer" style="margin-top:4px;color:rgba(180,204,186,.4)"></div>
+    <button onclick="openPwModal()" style="margin-top:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:rgba(180,204,186,.7);border-radius:8px;padding:5px 12px;font-size:10.5px;cursor:pointer;font-family:var(--sans);width:100%;transition:background .18s;" onmouseover="this.style.background='rgba(255,255,255,.12)'" onmouseout="this.style.background='rgba(255,255,255,.07)'">🔑 パスワード変更</button>
+    <div style="margin-top:12px;border-top:1px solid rgba(255,255,255,.06);padding-top:10px">
+      <div class="nav-lbl">ログイン履歴</div>
+      <div id="login-log-list"></div>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="tb-left">
+      <div class="tb-title" id="pg-title">ダッシュボード</div>
+      <div class="tb-sub" id="pg-sub">全体の状況を一覧できます</div>
+    </div>
+    <div class="tb-right">
+      <div class="tb-date" id="tb-date">--</div>
+      <button class="tb-btn" onclick="refreshAll()">↺ 更新</button>
+      <button class="tb-btn alt" onclick="openConfig()">⚙ Supabase接続</button>
+      <button class="logout-btn" onclick="doLogout()">ログアウト</button>
+    </div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="page on" id="pg-overview">
+    <div id="demo-banner"></div>
+    <div class="kpi-grid" id="kpi-grid"></div>
+    <div class="g32">
+      <div class="card" style="margin-bottom:0">
+        <div class="card-hd"><div class="card-title">今週の投稿数推移</div><div class="card-meta" id="chart-meta">3/31〜4/6</div></div>
+        <svg viewBox="0 0 540 130" style="width:100%">
+          <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2C4A3E" stop-opacity=".14"/><stop offset="100%" stop-color="#2C4A3E" stop-opacity="0"/></linearGradient></defs>
+          <line x1="0" y1="105" x2="540" y2="105" stroke="#E4DFD6" stroke-width="1"/>
+          <line x1="0" y1="77" x2="540" y2="77" stroke="#E4DFD6" stroke-width="1"/>
+          <line x1="0" y1="49" x2="540" y2="49" stroke="#E4DFD6" stroke-width="1"/>
+          <line x1="0" y1="21" x2="540" y2="21" stroke="#E4DFD6" stroke-width="1"/>
+          <path id="c-area" fill="url(#cg)"/>
+          <path id="c-line" fill="none" stroke="#2C4A3E" stroke-width="2.2" stroke-linecap="round"/>
+          <g id="c-dots"></g>
+          <g id="c-lbls"></g>
+        </svg>
+      </div>
+      <div class="card" style="margin-bottom:0">
+        <div class="card-hd"><div class="card-title">投稿時間帯</div><div class="card-meta">今週</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
+          <svg viewBox="0 0 110 110" width="100" height="100">
+            <circle r="33" cx="55" cy="55" fill="transparent" stroke="#B4CCBA" stroke-width="30" stroke-dasharray="73.5 133.5" stroke-dashoffset="0" transform="rotate(-90 55 55)"/>
+            <circle r="33" cx="55" cy="55" fill="transparent" stroke="#C9A84C" stroke-width="30" stroke-dasharray="63.8 143.2" stroke-dashoffset="-73.5" transform="rotate(-90 55 55)"/>
+            <circle r="33" cx="55" cy="55" fill="transparent" stroke="#D4826A" stroke-width="30" stroke-dasharray="50.6 156.4" stroke-dashoffset="-137.3" transform="rotate(-90 55 55)"/>
+            <circle r="33" cx="55" cy="55" fill="transparent" stroke="#7FA8BE" stroke-width="30" stroke-dasharray="19.5 187.5" stroke-dashoffset="-187.9" transform="rotate(-90 55 55)"/>
+          </svg>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 12px;width:100%">
+            <div class="ml-item"><div class="ml-dot" style="background:#B4CCBA"></div>朝 32%</div>
+            <div class="ml-item"><div class="ml-dot" style="background:#C9A84C"></div>昼 28%</div>
+            <div class="ml-item"><div class="ml-dot" style="background:#D4826A"></div>夕 22%</div>
+            <div class="ml-item"><div class="ml-dot" style="background:#7FA8BE"></div>夜 18%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="card" style="margin-bottom:0"><div class="card-hd"><div class="card-title">感情の温度分布</div></div><div id="emo-bars"></div></div>
+      <div class="card" style="margin-bottom:0"><div class="card-hd"><div class="card-title">しるし形 内訳</div></div>
+        <div style="display:flex;gap:16px;align-items:center">
+          <svg viewBox="0 0 110 110" width="90" height="90" style="flex-shrink:0">
+            <circle r="30" cx="55" cy="55" fill="transparent" stroke="#D4826A" stroke-width="26" stroke-dasharray="52.7 135.9" stroke-dashoffset="0" transform="rotate(-90 55 55)"/>
+            <circle r="30" cx="55" cy="55" fill="transparent" stroke="#C9A84C" stroke-width="26" stroke-dasharray="45.2 143.4" stroke-dashoffset="-52.7" transform="rotate(-90 55 55)"/>
+            <circle r="30" cx="55" cy="55" fill="transparent" stroke="#7FA8BE" stroke-width="26" stroke-dasharray="35.8 152.8" stroke-dashoffset="-97.9" transform="rotate(-90 55 55)"/>
+            <circle r="30" cx="55" cy="55" fill="transparent" stroke="#8FAF9A" stroke-width="26" stroke-dasharray="26.4 162.2" stroke-dashoffset="-133.7" transform="rotate(-90 55 55)"/>
+            <circle r="30" cx="55" cy="55" fill="transparent" stroke="#8888BC" stroke-width="26" stroke-dasharray="28.5 160.1" stroke-dashoffset="-160.1" transform="rotate(-90 55 55)"/>
+          </svg>
+          <div style="display:flex;flex-direction:column;gap:7px" id="shape-legend"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POSTS -->
+  <div class="page" id="pg-posts">
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title">投稿一覧（直近50件）</div>
+        <select id="post-filter" onchange="renderPosts()" style="font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:var(--cream2);color:var(--text);">
+          <option value="all">すべて</option><option value="live">公開中</option><option value="expired">期限切れ</option><option value="flagged">要確認</option>
+        </select>
+      </div>
+      <table class="tbl"><thead><tr><th>しるし</th><th>テキスト</th><th>エリア</th><th>時間帯</th><th>共鳴</th><th>ステータス</th><th></th></tr></thead>
+      <tbody id="posts-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- CITY MAP -->
+  <div class="page" id="pg-citymap">
+    <div class="card">
+      <div class="card-hd"><div class="card-title">都市感情マップ（代官山エリア · サンプル）</div><div class="card-meta">匿名集計 · 5件以上のグリッドのみ表示</div></div>
+      <div style="border-radius:11px;overflow:hidden">
+        <svg viewBox="0 0 720 400" style="width:100%">
+          <rect width="720" height="400" fill="#E6EDE8"/>
+          <rect x="0" y="85" width="720" height="14" fill="#D2E2D6" opacity=".9"/>
+          <rect x="0" y="192" width="720" height="13" fill="#D2E2D6" opacity=".9"/>
+          <rect x="0" y="298" width="720" height="13" fill="#D2E2D6" opacity=".9"/>
+          <rect x="95" y="0" width="13" height="400" fill="#D2E2D6" opacity=".8"/>
+          <rect x="252" y="0" width="11" height="400" fill="#D2E2D6" opacity=".8"/>
+          <rect x="412" y="0" width="11" height="400" fill="#D2E2D6" opacity=".8"/>
+          <rect x="572" y="0" width="11" height="400" fill="#D2E2D6" opacity=".8"/>
+          <rect x="16" y="14" width="69" height="61" rx="5" fill="#C6D8CA"/>
+          <rect x="114" y="14" width="128" height="61" rx="5" fill="#C6D8CA"/>
+          <rect x="269" y="14" width="133" height="61" rx="5" fill="#C6D8CA"/>
+          <rect x="429" y="14" width="133" height="61" rx="5" fill="#C6D8CA"/>
+          <rect x="589" y="14" width="115" height="61" rx="5" fill="#C6D8CA"/>
+          <rect x="16" y="105" width="69" height="77" rx="5" fill="#C6D8CA"/>
+          <rect x="114" y="105" width="128" height="77" rx="5" fill="#C6D8CA"/>
+          <rect x="269" y="105" width="133" height="77" rx="5" fill="#C6D8CA"/>
+          <rect x="429" y="105" width="133" height="77" rx="5" fill="#C6D8CA"/>
+          <rect x="589" y="105" width="115" height="77" rx="5" fill="#C6D8CA"/>
+          <rect x="16" y="211" width="69" height="77" rx="5" fill="#C6D8CA"/>
+          <rect x="114" y="211" width="128" height="77" rx="5" fill="#C6D8CA"/>
+          <rect x="269" y="211" width="133" height="77" rx="5" fill="#C6D8CA"/>
+          <rect x="429" y="211" width="133" height="77" rx="5" fill="#C6D8CA"/>
+          <rect x="589" y="211" width="115" height="77" rx="5" fill="#C6D8CA"/>
+          <rect x="16" y="318" width="69" height="66" rx="5" fill="#C6D8CA"/>
+          <rect x="114" y="318" width="128" height="66" rx="5" fill="#C6D8CA"/>
+          <rect x="269" y="318" width="133" height="66" rx="5" fill="#C6D8CA"/>
+          <rect x="429" y="318" width="133" height="66" rx="5" fill="#C6D8CA"/>
+          <circle cx="178" cy="143" r="52" fill="rgba(212,130,106,.2)"/>
+          <circle cx="335" cy="248" r="44" fill="rgba(201,168,76,.24)"/>
+          <circle cx="495" cy="143" r="58" fill="rgba(212,130,106,.17)"/>
+          <circle cx="178" cy="248" r="34" fill="rgba(143,175,154,.28)"/>
+          <circle cx="636" cy="248" r="38" fill="rgba(127,168,190,.28)"/>
+          <circle cx="178" cy="143" r="8" fill="#D4826A" opacity=".9"/><circle cx="178" cy="143" r="15" fill="#D4826A" opacity=".15"/>
+          <circle cx="335" cy="248" r="8" fill="#C9A84C" opacity=".9"/><circle cx="335" cy="248" r="15" fill="#C9A84C" opacity=".15"/>
+          <circle cx="495" cy="143" r="8" fill="#D4826A" opacity=".9"/><circle cx="495" cy="143" r="15" fill="#D4826A" opacity=".15"/>
+          <circle cx="178" cy="248" r="8" fill="#8FAF9A" opacity=".9"/><circle cx="178" cy="248" r="15" fill="#8FAF9A" opacity=".15"/>
+          <circle cx="636" cy="248" r="8" fill="#7FA8BE" opacity=".9"/><circle cx="636" cy="248" r="15" fill="#7FA8BE" opacity=".15"/>
+          <rect x="125" y="158" width="60" height="16" rx="5" fill="rgba(255,255,255,.72)"/>
+          <text x="155" y="170" text-anchor="middle" font-size="9.5" fill="#4A6058" font-family="Noto Sans JP,sans-serif">代官山A</text>
+          <rect x="283" y="261" width="60" height="16" rx="5" fill="rgba(255,255,255,.72)"/>
+          <text x="313" y="273" text-anchor="middle" font-size="9.5" fill="#4A6058" font-family="Noto Sans JP,sans-serif">代官山B</text>
+          <rect x="444" y="157" width="60" height="16" rx="5" fill="rgba(255,255,255,.72)"/>
+          <text x="474" y="169" text-anchor="middle" font-size="9.5" fill="#4A6058" font-family="Noto Sans JP,sans-serif">中目黒A</text>
+        </svg>
+      </div>
+      <div class="map-legend">
+        <div class="ml-item"><div class="ml-dot" style="background:#D4826A"></div>揺れてる・熱い</div>
+        <div class="ml-item"><div class="ml-dot" style="background:#C9A84C"></div>穏やか・温かい</div>
+        <div class="ml-item"><div class="ml-dot" style="background:#8FAF9A"></div>落ち着いた</div>
+        <div class="ml-item"><div class="ml-dot" style="background:#7FA8BE"></div>静か・冷たい</div>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="card" style="margin-bottom:0"><div class="card-hd"><div class="card-title">エリア別 投稿数</div></div><div id="area-bars"></div></div>
+      <div class="card" style="margin-bottom:0"><div class="card-hd"><div class="card-title">時間帯 × 感情温度</div></div><div id="slot-tbl"></div></div>
+    </div>
+  </div>
+
+  <!-- USERS -->
+  <div class="page" id="pg-users">
+    <div class="card"><div class="card-hd"><div class="card-title">ユーザー一覧（匿名ID表示）</div><div class="card-meta" id="user-cnt">全 248 名</div></div>
+    <div id="users-list"></div></div>
+  </div>
+
+  <!-- MODERATION -->
+  <div class="page" id="pg-moderation">
+    <div class="card" style="margin-bottom:16px"><div class="card-hd"><div class="card-title">要確認の投稿</div><div class="card-meta" id="mod-cnt">2件</div></div>
+    <div id="flagged-list"></div></div>
+    <div class="card"><div class="card-hd"><div class="card-title">モデレーションログ</div></div>
+      <table class="tbl"><thead><tr><th>日時</th><th>アクション</th><th>対象</th><th>結果</th></tr></thead>
+      <tbody id="mod-log"></tbody></table>
+    </div>
+  </div>
+
+  <!-- PREMIUM -->
+  <div class="page" id="pg-premium">
+    <div class="kpi-grid" id="prem-kpi"></div>
+    <div class="card"><div class="card-hd"><div class="card-title">プレミアム機能 ロードマップ</div></div><div id="roadmap"></div></div>
+  </div>
+
+  <!-- PRIVACY -->
+  <div class="page" id="pg-privacy">
+    <div class="card" style="margin-bottom:16px"><div class="card-hd"><div class="card-title">プライバシー設定</div></div><div id="priv-settings"></div></div>
+    <div class="card"><div class="card-hd"><div class="card-title">データ保持ポリシー</div></div><div id="ret-settings"></div></div>
+  </div>
+
+  <!-- EXPORT -->
+  <div class="page" id="pg-export">
+    <div class="card" style="margin-bottom:16px"><div class="card-hd"><div class="card-title">データエクスポート</div><div class="card-meta">匿名集計データのみ</div></div>
+    <div class="exp-grid" id="exp-grid"></div></div>
+    <div class="card"><div class="card-hd"><div class="card-title">エクスポート履歴</div></div>
+      <table class="tbl"><thead><tr><th>日時</th><th>種別</th><th>形式</th></tr></thead>
+      <tbody id="exp-log"><tr><td class="mono">—</td><td class="mono">—</td><td class="mono">—</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- SCHEMA -->
+  <div class="page" id="pg-schema">
+    <div class="card">
+      <div class="card-hd"><div class="card-title">Supabase DBスキーマ</div><div class="card-meta">SQL EditorにそのままペーストしてOK</div></div>
+      <p style="font-size:11.5px;color:var(--sub);line-height:1.7;margin-bottom:14px">SupabaseのSQL Editorに以下を貼り付けて実行してください。このスキーマはダッシュボードが期待するテーブル構造と一致しています。</p>
+      <div class="schema-blk"><pre id="sql-block"></pre></div>
+      <button onclick="copySQL()" style="margin-top:12px;background:var(--deep);color:var(--cream);border:none;border-radius:10px;padding:9px 18px;font-size:12px;cursor:pointer;font-family:var(--sans);">SQLをコピー</button>
+    </div>
+  </div>  <!-- FILTER -->
+  <div class="page" id="pg-filter">
+    <!-- stats row -->
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+      <div class="kpi" style="--acc:var(--coral)"><div class="kpi-lbl">登録済み禁止ワード</div><div class="kpi-val" id="flt-count">0</div><div class="kpi-delta" style="color:var(--sub)">日英 合計</div></div>
+      <div class="kpi" style="--acc:var(--gold)"><div class="kpi-lbl">フィルター検知（今週）</div><div class="kpi-val" id="flt-hits">0</div><div class="kpi-delta" style="color:var(--sub)">非公開にした件数</div></div>
+      <div class="kpi" style="--acc:var(--deep)"><div class="kpi-lbl">ユーザーへの表示メッセージ</div><div class="kpi-val" style="font-size:13px;line-height:1.4;margin-top:4px;font-family:var(--sans)" id="flt-msg-kpi">設定済み</div><div class="kpi-delta" style="color:var(--sub)">編集可能</div></div>
+    </div>
+
+    <!-- word lists -->
+    <div class="g2" style="margin-bottom:16px">
+      <div class="card" style="margin-bottom:0">
+        <div class="card-hd"><div class="card-title">禁止ワード — 日本語</div><div id="ja-count" class="filter-count-badge"><span id="ja-num">0</span> 件</div></div>
+        <div id="ja-tags" style="margin-bottom:14px;min-height:36px"></div>
+        <div style="display:flex;gap:8px">
+          <input class="tag-input" id="ja-input" placeholder="追加するワードを入力（例：死ね）" onkeydown="if(event.key==='Enter')addWord('ja')"/>
+          <button class="add-tag-btn" onclick="addWord('ja')">追加</button>
+        </div>
+        <div style="margin-top:12px;font-size:10.5px;color:var(--sub);line-height:1.65">
+          部分一致で検知します。例：「死」を登録すると「死にたい」「死ね」も検知。<br>
+          スペースや記号の有無に関わらずマッチします。
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:0">
+        <div class="card-hd"><div class="card-title">禁止ワード — English</div><div id="en-count" class="filter-count-badge"><span id="en-num">0</span> 件</div></div>
+        <div id="en-tags" style="margin-bottom:14px;min-height:36px"></div>
+        <div style="display:flex;gap:8px">
+          <input class="tag-input" id="en-input" placeholder="Add word (e.g. hate)" onkeydown="if(event.key==='Enter')addWord('en')"/>
+          <button class="add-tag-btn" onclick="addWord('en')">Add</button>
+        </div>
+        <div style="margin-top:12px;font-size:10.5px;color:var(--sub);line-height:1.65">
+          Case-insensitive partial match. Adding "hate" also catches "hateful", "I hate".
+        </div>
+      </div>
+    </div>
+
+    <!-- message editor -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-hd"><div class="card-title">検知時にユーザーへ表示するメッセージ</div><div class="card-meta">投稿は非公開として保存されます</div></div>
+      <div style="display:flex;gap:16px;align-items:flex-start">
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--sub);letter-spacing:.07em;margin-bottom:7px;font-family:var(--mono)">メインメッセージ</div>
+          <textarea id="filter-msg-main" style="width:100%;padding:10px 13px;border:1px solid var(--border);border-radius:10px;font-size:14px;font-family:var(--serif);background:var(--cream2);color:var(--text);outline:none;resize:none;height:72px;transition:border .18s;line-height:1.65;" oninput="updateMsgPreview()"></textarea>
+          <div style="font-size:11px;color:var(--sub);letter-spacing:.07em;margin:12px 0 7px;font-family:var(--mono)">サブテキスト（任意）</div>
+          <textarea id="filter-msg-sub" style="width:100%;padding:10px 13px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:var(--sans);background:var(--cream2);color:var(--text);outline:none;resize:none;height:52px;transition:border .18s;line-height:1.65;" oninput="updateMsgPreview()"></textarea>
+          <button onclick="saveMsgSettings()" style="margin-top:12px;background:var(--deep);color:var(--cream);border:none;border-radius:10px;padding:9px 20px;font-size:12.5px;font-family:var(--sans);cursor:pointer;transition:background .18s;">保存する</button>
+        </div>
+        <!-- live preview -->
+        <div class="filter-msg-preview" style="width:280px;flex-shrink:0">
+          <div class="filter-msg-title">USER PREVIEW</div>
+          <div class="filter-preview-inner">
+            <div class="filter-icon" id="prev-icon">🍃</div>
+            <div class="filter-msg-text" id="prev-main">ちょっと疲れてるみたい。<br>自分を労って過ごしてね。</div>
+            <div class="filter-msg-sub" id="prev-sub">このしるしは、あなただけのアーカイブに残っています。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- detection log -->
+    <div class="card">
+      <div class="card-hd"><div class="card-title">フィルター検知ログ（直近）</div><div class="card-meta">非公開保存した投稿の記録</div></div>
+      <table class="tbl"><thead><tr><th>日時</th><th>検知ワード</th><th>テキスト（マスク）</th><th>処理</th></tr></thead>
+      <tbody id="filter-log"><tr><td class="mono" colspan="4" style="text-align:center;color:var(--sub)">検知ログはまだありません</td></tr></tbody></table>
+    </div>
+  </div>
+
+</main>
+
+<!-- CONFIG MODAL -->
+<div class="modal-bg" id="cfg-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-title">Supabase 接続設定</div>
+    <div class="modal-sub">SupabaseプロジェクトのURLとAnon Keyを入力してください。<br>情報はブラウザに保存されます（このデバイスのみ）。</div>
+    <div class="field"><label>SUPABASE_URL</label><input id="cfg-url" type="text" placeholder="https://xxxxxxxxxxxx.supabase.co"/></div>
+    <div class="field"><label>SUPABASE_ANON_KEY</label><input id="cfg-key" type="text" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."/></div>
+    <div class="modal-note">⚠️ <strong>anon（公開）キー</strong>を使用してください。<br>SupabaseダッシュボードのProject Settings → API → <code>anon public</code>に記載。<br>Row Level Security（RLS）で管理者のみアクセス可能に設定することを推奨します。</div>
+    <div class="modal-btns">
+      <button class="mbtn mbtn-demo" onclick="useDemoMode()">サンプルデータで続ける</button>
+      <button class="mbtn mbtn-cancel" onclick="closeConfig()">キャンセル</button>
+      <button class="mbtn mbtn-save" onclick="saveConfig()">接続する</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── CONFIG ── */
+let SB_URL='',SB_KEY='',isLive=false;
+function loadConfig(){
+  SB_URL=localStorage.getItem('sb_url')||'';
+  SB_KEY=localStorage.getItem('sb_key')||'';
+  if(SB_URL&&SB_KEY){setConn('checking');testConn();}
+  else setConn('demo');
+}
+function setConn(s){
+  const dot=document.getElementById('conn-dot'),lbl=document.getElementById('conn-lbl'),ver=document.getElementById('sb-ver');
+  dot.className='conn-dot';
+  if(s==='live'){dot.classList.add('live');lbl.textContent='Supabase 接続中';ver.textContent='live · '+SB_URL.replace('https://','').split('.')[0];isLive=true;}
+  else if(s==='checking'){dot.classList.add('demo');lbl.textContent='接続確認中…';isLive=false;}
+  else if(s==='err'){dot.classList.add('err');lbl.textContent='接続エラー';ver.textContent='エラー · URL/Keyを確認';isLive=false;}
+  else{dot.classList.add('demo');lbl.textContent='サンプルデータ';ver.textContent='demo mode · Supabase未接続';isLive=false;}
+  renderBanner();
+}
+async function testConn(){
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/shirushi_posts?select=count&limit=1',{headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}});
+    if(r.ok){setConn('live');toast('Supabase に接続しました');refreshAll();}
+    else throw new Error('HTTP '+r.status);
+  }catch(e){setConn('err');toast('接続エラー: '+e.message);}
+}
+function openConfig(){document.getElementById('cfg-url').value=SB_URL;document.getElementById('cfg-key').value=SB_KEY;document.getElementById('cfg-modal').style.display='flex';}
+function closeConfig(){document.getElementById('cfg-modal').style.display='none';}
+function useDemoMode(){localStorage.removeItem('sb_url');localStorage.removeItem('sb_key');SB_URL='';SB_KEY='';setConn('demo');closeConfig();toast('サンプルデータモードで動作中');refreshAll();}
+function saveConfig(){
+  SB_URL=document.getElementById('cfg-url').value.trim().replace(/\/$/,'');
+  SB_KEY=document.getElementById('cfg-key').value.trim();
+  if(!SB_URL||!SB_KEY){toast('URLとKeyを両方入力してください');return;}
+  localStorage.setItem('sb_url',SB_URL);localStorage.setItem('sb_key',SB_KEY);
+  closeConfig();setConn('checking');testConn();
+}
+document.getElementById('cfg-modal').addEventListener('click',e=>{if(e.target===document.getElementById('cfg-modal'))closeConfig();});
+
+/* ── SUPABASE HELPERS ── */
+async function sbFetch(path,params=''){
+  const r=await fetch(SB_URL+'/rest/v1/'+path+'?'+params,{headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'count=exact'}});
+  if(!r.ok) throw new Error(r.status);
+  return{data:await r.json(),count:r.headers.get('content-range')};
+}
+async function sbDel(path,id){
+  await fetch(SB_URL+'/rest/v1/'+path+'?id=eq.'+id,{method:'DELETE',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}});
+}
+function pCount(h){if(!h)return 0;const m=h.match(/\/(\d+)/);return m?parseInt(m[1]):0;}
+function weekAgo(){const d=new Date();d.setDate(d.getDate()-7);return d.toISOString();}
+
+/* ── SAMPLE DATA ── */
+const D_KPI={users:248,posts:1847,live:37,resonance:412};
+const D_POSTS=[
+  {id:'post_a1b2',shape:'tri',color_code:'#D4826A',text_content:'今日は少し背中が軽い',area_code:'DAI-A',time_slot:'morning',resonance_count:7,is_public:true,status:'live'},
+  {id:'post_c3d4',shape:'ring',color_code:'#C9A84C',text_content:'風が少し冷たかった。それでも歩いた。',area_code:'DAI-B',time_slot:'day',resonance_count:3,is_public:true,status:'live'},
+  {id:'post_e5f6',shape:'wave',color_code:'#7FA8BE',text_content:'何かが変わる気がする',area_code:'NAK-A',time_slot:'evening',resonance_count:12,is_public:true,status:'live'},
+  {id:'post_g7h8',shape:'ring',color_code:'#C9A84C',text_content:'昔のことを思い出した',area_code:'DAI-A',time_slot:'morning',resonance_count:5,is_public:false,status:'expired'},
+  {id:'post_i9j0',shape:'sq',color_code:'#8FAF9A',text_content:'静かな朝だった',area_code:'EBI-A',time_slot:'morning',resonance_count:2,is_public:false,status:'expired'},
+  {id:'post_k1l2',shape:'tri',color_code:'#C85040',text_content:'',area_code:'DAI-C',time_slot:'night',resonance_count:0,is_public:true,status:'flagged'},
+  {id:'post_m3n4',shape:'arch',color_code:'#7888BC',text_content:'ひさしぶりに泣いた',area_code:'NAK-B',time_slot:'night',resonance_count:18,is_public:true,status:'live'},
+  {id:'post_o5p6',shape:'lines',color_code:'#D4826A',text_content:'',area_code:'DAI-A',time_slot:'evening',resonance_count:1,is_public:true,status:'flagged'},
+  {id:'post_q7r8',shape:'ring',color_code:'#7FA8BE',text_content:'雨の音が好きだと気づいた',area_code:'EBI-B',time_slot:'day',resonance_count:9,is_public:false,status:'expired'},
+  {id:'post_s9t0',shape:'wave',color_code:'#C9A84C',text_content:'今日は何もしなかったが、それでよかった',area_code:'DAI-B',time_slot:'morning',resonance_count:14,is_public:true,status:'live'},
+];
+const D_USERS=[
+  {id:'usr_3f2a',post_count:24,resonance_received:87,created_at:'2025-03-01',premium_status:false},
+  {id:'usr_8c4e',post_count:18,resonance_received:62,created_at:'2025-03-08',premium_status:false},
+  {id:'usr_1d9b',post_count:31,resonance_received:120,created_at:'2025-02-22',premium_status:false},
+  {id:'usr_5a7f',post_count:9,resonance_received:28,created_at:'2025-03-15',premium_status:false},
+  {id:'usr_2e6c',post_count:44,resonance_received:195,created_at:'2025-02-18',premium_status:false},
+];
+const D_FLAGS=[
+  {id:'post_k1l2',reason:'感情的なテキストなし（空投稿）',area_code:'DAI-C',time_slot:'night'},
+  {id:'post_o5p6',reason:'自動検知：感情的動揺の可能性あり',area_code:'DAI-A',time_slot:'evening'},
+];
+const WEEKLY=[{d:'月',v:22},{d:'火',v:28},{d:'水',v:19},{d:'木',v:35},{d:'金',v:41},{d:'土',v:47},{d:'日',v:52}];
+
+/* ── NAV ── */
+const PG_META={
+  overview:['ダッシュボード','全体の状況を一覧できます'],
+  posts:['投稿一覧','直近の投稿を確認・管理できます'],
+  citymap:['都市感情マップ','エリアごとの感情分布を可視化します'],
+  users:['ユーザー管理','匿名IDでユーザーを管理します'],
+  moderation:['モデレーション','要確認の投稿を確認・対応します'],
+  premium:['プレミアム管理','収益設計とロードマップを確認します'],
+  privacy:['プライバシー設定','データ取得・保持のポリシーを管理します'],
+  export:['データエクスポート','匿名集計データをエクスポートします'],
+  schema:['DBスキーマ','Supabase用のSQL定義を確認・コピーできます'],
+};
+let curPg='overview';
+function nav(id,btn){
+  curPg=id;
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.getElementById('pg-'+id).classList.add('on');
+  const[t,s]=PG_META[id]||['',''];
+  document.getElementById('pg-title').textContent=t;
+  document.getElementById('pg-sub').textContent=s;
+  renderPg(id);
+}
+
+/* ── BANNER ── */
+function renderBanner(){
+  const el=document.getElementById('demo-banner');
+  if(!el)return;
+  el.innerHTML=isLive?'':'<div class="demo-banner">⚠ サンプルデータで表示中。実データを見るにはSupabaseを接続してください。<button onclick="openConfig()">接続する →</button></div>';
+}
+
+/* ── DATA ── */
+async function fetchKPI(){
+  if(!isLive)return D_KPI;
+  try{
+    const[u,p,l,r]=await Promise.all([sbFetch('users','select=count'),sbFetch('shirushi_posts','select=count'),sbFetch('shirushi_posts','select=count&is_public=eq.true'),sbFetch('resonances','select=count&created_at=gte.'+weekAgo())]);
+    return{users:pCount(u.count),posts:pCount(p.count),live:pCount(l.count),resonance:pCount(r.count)};
+  }catch(e){return D_KPI;}
+}
+async function fetchPosts(f){
+  if(!isLive)return f==='all'?D_POSTS:D_POSTS.filter(p=>p.status===f);
+  try{
+    let q='select=id,shape,color_code,text_content,area_code,time_slot,resonance_count,is_public&order=created_at.desc&limit=50';
+    if(f==='live')q+='&is_public=eq.true';
+    if(f==='expired')q+='&is_public=eq.false';
+    const{data}=await sbFetch('shirushi_posts',q);
+    return data.map(p=>({...p,status:p.is_public?'live':'expired'}));
+  }catch(e){return D_POSTS;}
+}
+async function fetchUsers(){
+  if(!isLive)return{data:D_USERS};
+  try{return await sbFetch('users','select=id,post_count,resonance_received,created_at,premium_status&order=post_count.desc&limit=50');}
+  catch(e){return{data:D_USERS};}
+}
+
+/* ── RENDER ── */
+async function renderPg(id){
+  if(id==='overview')await renderOverview();
+  if(id==='posts')await renderPosts();
+  if(id==='citymap')renderCityMap();
+  if(id==='users')await renderUsers();
+  if(id==='moderation')renderMod();
+  if(id==='premium')renderPremium();
+  if(id==='privacy')renderPrivacy();
+  if(id==='export')renderExport();
+  if(id==='schema')renderSchema();
+}
+
+const COLORS=[
+  {hex:'#C85040',name:'深い赤',pct:8},{hex:'#D4826A',name:'珊瑚',pct:22},{hex:'#C9A84C',name:'金',pct:18},
+  {hex:'#8CC870',name:'若草',pct:12},{hex:'#7FA8BE',name:'空',pct:19},{hex:'#7888BC',name:'藤',pct:12},{hex:'#7A8A92',name:'霧',pct:9},
+];
+
+async function renderOverview(){
+  renderBanner();
+  const kpi=await fetchKPI();
+  document.getElementById('kpi-grid').innerHTML=[
+    {l:'総ユーザー数',v:kpi.users.toLocaleString(),d:'▲ +12 今週',c:'up',a:'var(--deep)'},
+    {l:'総投稿数（累計）',v:kpi.posts.toLocaleString(),d:'▲ +84 今週',c:'up',a:'var(--coral)'},
+    {l:'今日のしるし（公開中）',v:kpi.live.toLocaleString(),d:'▲ +5 昨日比',c:'up',a:'var(--gold)'},
+    {l:'共鳴数（今週）',v:kpi.resonance.toLocaleString(),d:'▼ −8 先週比',c:'dn',a:'var(--blue)'},
+  ].map(k=>`<div class="kpi" style="--acc:${k.a}"><div class="kpi-lbl">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-delta ${k.c}">${k.d}</div></div>`).join('');
+  // chart
+  const mx=Math.max(...WEEKLY.map(w=>w.v));
+  const pts=WEEKLY.map((w,i)=>({x:30+i*(480/6),y:20+(1-w.v/mx)*80,d:w.d}));
+  const ld='M'+pts.map(p=>`${p.x},${p.y.toFixed(1)}`).join(' L');
+  document.getElementById('c-area').setAttribute('d',ld+` L${pts[pts.length-1].x},105 L${pts[0].x},105Z`);
+  document.getElementById('c-line').setAttribute('d',ld);
+  document.getElementById('c-dots').innerHTML=pts.map((p,i)=>`<circle cx="${p.x}" cy="${p.y.toFixed(1)}" r="4" fill="${i===pts.length-1?'#D4826A':'#2C4A3E'}"/>`).join('');
+  document.getElementById('c-lbls').innerHTML=pts.map(p=>`<text x="${p.x}" y="124" text-anchor="middle" font-size="10.5" fill="#9AA890" font-family="DM Mono,monospace">${p.d}</text>`).join('');
+  // emo bars
+  const eb=document.getElementById('emo-bars');
+  eb.innerHTML=COLORS.map(c=>`<div class="bar-row"><div class="emo-dot" style="background:${c.hex}"></div><div class="bar-lbl">${c.name}</div><div class="bar-track"><div class="bar-fill" style="width:0%;background:${c.hex}" data-w="${c.pct}"></div></div><div class="bar-pct">${c.pct}%</div></div>`).join('');
+  setTimeout(()=>eb.querySelectorAll('.bar-fill').forEach(b=>b.style.width=b.dataset.w+'%'),80);
+  // shape legend
+  document.getElementById('shape-legend').innerHTML=[
+    ['#D4826A','△ 三角 28%'],['#C9A84C','○ 丸 24%'],['#7FA8BE','〜 波 19%'],['#8FAF9A','□ 四角 14%'],['#8888BC','∩ アーチ 10%']
+  ].map(([c,t])=>`<div style="display:flex;align-items:center;gap:7px;font-size:11px;color:var(--sub)"><div style="width:10px;height:10px;border-radius:50%;background:${c};flex-shrink:0"></div>${t}</div>`).join('');
+}
+
+async function renderPosts(){
+  const f=document.getElementById('post-filter').value;
+  const posts=await fetchPosts(f);
+  const SLOT={morning:'朝',day:'昼',evening:'夕',night:'夜'};
+  const SLBL={live:'公開中',expired:'期限切れ',flagged:'要確認'};
+  document.getElementById('posts-tbody').innerHTML=posts.map(p=>`<tr>
+    <td><div class="sh-icon" style="background:${p.color_code}">${svgSh(p.shape)}</div></td>
+    <td style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.text_content||'<span style="color:#ccc;font-style:italic;font-size:11px">テキストなし</span>'}</td>
+    <td class="mono">${p.area_code}</td><td class="mono">${SLOT[p.time_slot]||p.time_slot}</td>
+    <td style="font-family:var(--mono);font-size:11.5px">${p.resonance_count}</td>
+    <td><span class="chip chip-${p.status}">${SLBL[p.status]||p.status}</span></td>
+    <td><button class="del-btn" onclick="delPost('${p.id}',this)">削除</button></td>
+  </tr>`).join('');
+}
+async function delPost(id,btn){
+  if(isLive)await sbDel('shirushi_posts',id);
+  const row=btn.closest('tr');
+  row.style.cssText='opacity:0;transform:translateX(18px);transition:all .28s ease';
+  setTimeout(()=>row.remove(),280);
+  toast('投稿を削除しました');
+}
+
+function renderCityMap(){
+  document.getElementById('area-bars').innerHTML=[
+    {n:'代官山A',c:38,col:'#D4826A'},{n:'代官山B',c:29,col:'#C9A84C'},
+    {n:'中目黒A',c:24,col:'#D4826A'},{n:'恵比寿A',c:18,col:'#8FAF9A'},{n:'中目黒B',c:14,col:'#7FA8BE'},
+  ].map(a=>`<div class="bar-row"><div class="bar-lbl" style="width:60px;font-size:10.5px">${a.n}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(a.c/38*100)}%;background:${a.col}"></div></div><div class="bar-pct">${a.c}</div></div>`).join('');
+  const cd=c=>`<div style="width:11px;height:11px;border-radius:50%;background:${c};flex-shrink:0"></div>`;
+  document.getElementById('slot-tbl').innerHTML=`<table class="tbl"><thead><tr><th>時間帯</th><th>主な色</th><th>件数</th></tr></thead><tbody>
+    <tr><td>朝</td><td style="display:flex;gap:4px">${cd('#B4CCBA')}${cd('#C9A84C')}</td><td class="mono">84</td></tr>
+    <tr><td>昼</td><td style="display:flex;gap:4px">${cd('#C9A84C')}${cd('#D4826A')}</td><td class="mono">72</td></tr>
+    <tr><td>夕</td><td style="display:flex;gap:4px">${cd('#D4826A')}${cd('#C85040')}</td><td class="mono">58</td></tr>
+    <tr><td>夜</td><td style="display:flex;gap:4px">${cd('#7FA8BE')}${cd('#7888BC')}</td><td class="mono">46</td></tr>
+  </tbody></table>`;
+}
+
+async function renderUsers(){
+  const{data:u}=await fetchUsers();
+  document.getElementById('users-list').innerHTML=u.map(x=>`<div class="user-row">
+    <div class="u-av">${x.id.substring(4,7).toUpperCase()}</div>
+    <div><div class="u-id">${x.id}</div><div class="u-stat">投稿 ${x.post_count}件 · 共鳴受け取り ${x.resonance_received}回 · 参加 ${x.created_at.substring(0,10)}</div></div>
+    <span class="${x.premium_status?'plan-prem':'plan-free'}">${x.premium_status?'PREMIUM':'FREE'}</span>
+  </div>`).join('');
+}
+
+let flagged=[...D_FLAGS],modLog=[];
+function renderMod(){
+  document.getElementById('mod-cnt').textContent=flagged.length+'件';
+  document.getElementById('flagged-list').innerHTML=flagged.length===0
+    ?'<div style="text-align:center;padding:28px;color:var(--sub);font-size:12.5px">要確認の投稿はありません ✓</div>'
+    :flagged.map((f,i)=>`<div class="alert" id="fl-${i}"><div class="alert-ico">⚑</div><div class="alert-body">
+      <strong style="color:var(--coral)">${f.id}</strong> — ${f.reason}<br>
+      <span style="color:var(--sub);font-size:10.5px">エリア: ${f.area_code} · 時間帯: ${{morning:'朝',day:'昼',evening:'夕',night:'夜'}[f.time_slot]}</span>
+      <div class="alert-acts"><button class="abtn abtn-del" onclick="resolveF(${i},'del')">削除する</button><button class="abtn abtn-ok" onclick="resolveF(${i},'ok')">問題なし</button></div>
+    </div></div>`).join('');
+  document.getElementById('mod-log').innerHTML=modLog.length
+    ?modLog.map(l=>`<tr><td class="mono">${l.t}</td><td>${l.a}</td><td class="mono">${l.id.substring(0,12)}…</td><td><span class="chip ${l.ok?'chip-live':'chip-flag'}">${l.ok?'承認':'削除'}</span></td></tr>`).join('')
+    :'<tr><td class="mono">—</td><td>—</td><td>—</td></tr>';
+  const cnt=flagged.length;
+  ['bf','bm'].forEach(id=>{const el=document.getElementById(id);el.textContent=cnt||'';el.style.display=cnt?'':'none';});
+}
+function resolveF(i,action){
+  const f=flagged[i];const now=new Date();const ts=`${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  modLog.unshift({t:ts,a:action==='del'?'手動削除':'問題なし承認',id:f.id,ok:action==='ok'});
+  if(modLog.length>10)modLog.pop();
+  flagged.splice(i,1);
+  toast(action==='del'?'投稿を削除しました':'承認しました');
+  renderMod();
+}
+
+function renderPremium(){
+  document.getElementById('prem-kpi').innerHTML=[
+    {l:'プレミアム会員',v:'0',d:'— リリース前',a:'var(--gold)'},
+    {l:'月間収益',v:'¥0',d:'— 未稼働',a:'var(--green)'},
+    {l:'転換率目標',v:'5%',d:'— 業界平均2〜5%',a:'var(--coral)'},
+    {l:'MRR目標',v:'¥47k',d:'248名×5%×¥380',a:'var(--blue)'},
+  ].map(k=>`<div class="kpi" style="--acc:${k.a}"><div class="kpi-lbl">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-delta" style="color:var(--sub)">${k.d}</div></div>`).join('');
+  document.getElementById('roadmap').innerHTML=[
+    {ph:'now',pl:'現在稼働中',t:'基本機能（無料）',d:'匿名投稿・しるし表示・24時間公開・共鳴ボタン'},
+    {ph:'soon',pl:'v1.1 近日',t:'しるし日記（プレミアム）',d:'過去の投稿を月・年単位で振り返る詳細アーカイブ。感情の変遷をパーソナルに閲覧。'},
+    {ph:'soon',pl:'v1.2 近日',t:'感情グラフ（プレミアム）',d:'週・月・年単位の感情温度変化グラフ。色・形・時間帯の傾向を可視化。'},
+    {ph:'later',pl:'v2.0 将来',t:'街の感情マップ閲覧（プレミアム）',d:'周辺エリアの感情ヒートマップを閲覧。「この交差点はいつも穏やかな金色」などの発見。'},
+    {ph:'later',pl:'v2.1 将来',t:'過去のしるし閲覧（プレミアム）',d:'24時間が過ぎた他の人のしるしを過去7日分遡って閲覧。'},
+    {ph:'later',pl:'v3.0 将来',t:'音の記録（プレミアム）',d:'投稿に最大5秒の環境音を添付。街の音を記録する体験の拡張。'},
+  ].map(r=>`<div class="rm-item"><div class="rm-phase ph-${r.ph}">${r.pl}</div><div><div class="rm-title">${r.t}</div><div class="rm-desc">${r.d}</div></div></div>`).join('');
+}
+
+const privSt={gps_raw:false,text_log:false,anon_stats:true,resonance_pub:true,night_coarse:true};
+function renderPrivacy(){
+  document.getElementById('priv-settings').innerHTML=[
+    {k:'gps_raw',l:'GPS生座標の保存',d:'OFFを強く推奨。100mグリッドに変換後、生座標は即時破棄されます。'},
+    {k:'text_log',l:'テキスト内容のサーバーログ記録',d:'本番環境ではOFFを推奨。'},
+    {k:'anon_stats',l:'匿名集計データへの参加',d:'K-匿名性（5件以上）を担保。ユーザー個別のオプトアウトも可能。'},
+    {k:'resonance_pub',l:'共鳴数の公開',d:'誰が共鳴したかは非公開。合計数のみ表示します。'},
+    {k:'night_coarse',l:'夜間の位置精度を粗くする（22〜6時）',d:'グリッドサイズを500mに拡大し、深夜の行動特定リスクを低減。'},
+  ].map(s=>`<div class="setting-row"><div><div class="s-lbl">${s.l}</div><div class="s-desc">${s.d}</div></div><button class="toggle ${privSt[s.k]?'on':''}" onclick="togPriv('${s.k}',this)"></button></div>`).join('');
+  document.getElementById('ret-settings').innerHTML=[
+    {l:'公開投稿の非公開化',v:'投稿から24時間後に自動'},
+    {l:'個人の投稿データ（しるし日記）',v:'アカウント削除まで保持'},
+    {l:'匿名集計データ',v:'無期限（個人特定不可）'},
+    {l:'ログデータ',v:'30日間'},
+    {l:'アカウント削除後のデータ',v:'72時間以内に完全削除'},
+  ].map(r=>`<div class="setting-row"><div class="s-lbl">${r.l}</div><div class="ret-badge">${r.v}</div></div>`).join('');
+}
+function togPriv(k,btn){privSt[k]=!privSt[k];btn.classList.toggle('on');toast(k+' を'+(privSt[k]?'有効':'無効')+'にしました');}
+
+function renderExport(){
+  document.getElementById('exp-grid').innerHTML=[
+    {i:'📊',l:'感情集計 CSV',s:'エリア×時間帯×色の分布'},
+    {i:'🗺',l:'感情マップ JSON',s:'グリッドコード別集計データ'},
+    {i:'👥',l:'ユーザー統計',s:'匿名・集計値のみ'},
+    {i:'📅',l:'月次アーカイブ',s:'月別感情分布データ'},
+    {i:'🔍',l:'匿名しるし全件',s:'個人識別情報なし'},
+    {i:'📈',l:'週次レポート',s:'今週のサマリー'},
+  ].map((e,i)=>`<div class="exp-card" onclick="doExp(${i},'${e.l}')"><div class="exp-ico">${e.i}</div><div class="exp-lbl">${e.l}</div><div class="exp-sub">${e.s}</div></div>`).join('');
+}
+function doExp(i,l){toast(l+' のエクスポートを開始しました');const now=new Date();const ts=`${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;const tb=document.getElementById('exp-log');if(tb.rows[0]?.cells[0]?.textContent==='—')tb.innerHTML='';tb.insertAdjacentHTML('afterbegin',`<tr><td class="mono">${ts}</td><td class="mono">${l}</td><td class="mono">CSV</td></tr>`);}
+
+const SQL=`-- ══════════════════════════════════════════
+-- しるしのまち · Supabase SQL Schema v0.2
+-- SQL Editorに貼り付けて実行してください
+-- ══════════════════════════════════════════
+
+-- USERS
+CREATE TABLE IF NOT EXISTS users (
+  id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  premium_status       BOOLEAN DEFAULT FALSE,
+  settings_json        JSONB DEFAULT '{}',
+  post_count           INTEGER DEFAULT 0,
+  resonance_received   INTEGER DEFAULT 0
+);
+
+-- POSTS (しるし投稿)
+CREATE TABLE IF NOT EXISTS shirushi_posts (
+  id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id              UUID REFERENCES users(id) ON DELETE CASCADE,
+  color_code           VARCHAR(7) NOT NULL,        -- HEX e.g. #D4826A
+  shape                VARCHAR(10) NOT NULL,        -- ring/sq/tri/wave/lines/arch
+  text_content         VARCHAR(50),                 -- NULL OK (任意テキスト)
+  time_slot            VARCHAR(10) NOT NULL,        -- morning/day/evening/night
+  area_code            VARCHAR(20) NOT NULL,        -- グリッドコード (GPS生値は不保存)
+  is_public            BOOLEAN DEFAULT TRUE,
+  public_expires_at    TIMESTAMPTZ,                 -- 投稿 + 24h
+  resonance_count      INTEGER DEFAULT 0,
+  created_at           TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RESONANCES (共鳴)
+CREATE TABLE IF NOT EXISTS resonances (
+  id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  post_id              UUID REFERENCES shirushi_posts(id) ON DELETE CASCADE,
+  user_id              UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(post_id, user_id)                          -- 1ユーザー1投稿1回のみ
+);
+
+-- CITY AGGREGATES (都市感情集計 · 匿名)
+CREATE TABLE IF NOT EXISTS city_emotion_aggregates (
+  id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  area_code            VARCHAR(20) NOT NULL,
+  time_slot            VARCHAR(10) NOT NULL,
+  date_month           VARCHAR(7) NOT NULL,         -- YYYY-MM
+  color_distribution   JSONB DEFAULT '{}',
+  shape_distribution   JSONB DEFAULT '{}',
+  total_count          INTEGER DEFAULT 0,           -- K-匿名性チェック用 (5件未満は非公開)
+  resonance_avg        FLOAT DEFAULT 0,
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ROW LEVEL SECURITY (RLS)
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shirushi_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE resonances ENABLE ROW LEVEL SECURITY;
+
+-- 24時間後に自動非公開 (Supabase Edge Function または pg_cron で実行)
+-- UPDATE shirushi_posts
+--   SET is_public = FALSE
+--   WHERE is_public = TRUE AND public_expires_at < NOW();`;
+
+function renderSchema(){
+  document.getElementById('sql-block').innerHTML=SQL
+    .replace(/--[^\n]*/g,s=>`<span class="cmt">${s}</span>`)
+    .replace(/\b(CREATE|TABLE|IF|NOT|EXISTS|PRIMARY|KEY|DEFAULT|REFERENCES|ON|DELETE|CASCADE|BOOLEAN|INTEGER|FLOAT|JSONB|VARCHAR|UUID|TIMESTAMPTZ|UNIQUE|ALTER|ENABLE|ROW|LEVEL|SECURITY|UPDATE|SET|WHERE|AND|FALSE|TRUE|NULL)\b/g,s=>`<span class="kw">${s}</span>`)
+    .replace(/'[^']*'/g,s=>`<span class="str">${s}</span>`);
+}
+function copySQL(){navigator.clipboard.writeText(SQL).then(()=>toast('SQLをクリップボードにコピーしました'));}
+
+/* ── SHAPE SVG ── */
+function svgSh(s){const w='rgba(255,255,255,0.93)';return({ring:`<svg viewBox="0 0 20 20" width="16" height="16"><circle cx="10" cy="10" r="6" fill="none" stroke="${w}" stroke-width="3"/></svg>`,sq:`<svg viewBox="0 0 18 18" width="14" height="14"><rect x="3" y="3" width="12" height="12" rx="2" fill="${w}"/></svg>`,tri:`<svg viewBox="0 0 20 18" width="16" height="14"><polygon points="10,2 19,16 1,16" fill="${w}"/></svg>`,wave:`<svg viewBox="0 0 24 14" width="18" height="10"><path d="M2,7 Q6,2 10,7 Q14,12 18,7 Q21,4 22,7" fill="none" stroke="${w}" stroke-width="2.5" stroke-linecap="round"/></svg>`,lines:`<svg viewBox="0 0 18 18" width="14" height="14"><line x1="6" y1="3" x2="6" y2="15" stroke="${w}" stroke-width="3" stroke-linecap="round"/><line x1="12" y1="3" x2="12" y2="15" stroke="${w}" stroke-width="3" stroke-linecap="round"/></svg>`,arch:`<svg viewBox="0 0 18 18" width="14" height="14"><path d="M2,16 L2,9 A7,7 0 0,1 16,9 L16,16" fill="none" stroke="${w}" stroke-width="2.5" stroke-linecap="round"/></svg>`})[s]||'';}
+
+/* ── UTILS ── */
+function updateDate(){const d=new Date();document.getElementById('tb-date').textContent=d.getFullYear()+'/'+(d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getDate().toString().padStart(2,'0')+' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');}
+setInterval(updateDate,30000);updateDate();
+async function refreshAll(){toast('データを更新しました');updateDate();await renderPg(curPg);}
+let _tt;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2800);}
+
+
+/* ══════════════════════════════════════════
+   LOGIN — セキュリティ強化版
+   ・5回失敗でロックアウト（30分）
+   ・セッション有効期限（8時間）
+   ・パスワード強度チェック
+   ・ログイン試行ログ（直近10件）
+   デフォルトPW: shirushi2025
+══════════════════════════════════════════ */
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS   = 30 * 60 * 1000;  // 30分
+const SESSION_TTL  = 8 * 60 * 60 * 1000; // 8時間
+
+async function sha256(msg){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(msg));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function getLockout(){
+  const d=localStorage.getItem('admin_lockout');
+  return d?JSON.parse(d):{attempts:0,lockedUntil:0};
+}
+function setLockout(obj){localStorage.setItem('admin_lockout',JSON.stringify(obj));}
+function clearLockout(){localStorage.removeItem('admin_lockout');}
+
+function addLoginLog(success, detail=''){
+  const logs=JSON.parse(localStorage.getItem('admin_login_log')||'[]');
+  logs.unshift({
+    time: new Date().toLocaleString('ja-JP'),
+    ok: success,
+    detail,
+    ua: navigator.userAgent.substring(0,60)
+  });
+  if(logs.length>10) logs.pop();
+  localStorage.setItem('admin_login_log', JSON.stringify(logs));
+}
+
+function renderAttemptDots(attempts){
+  const dots = document.querySelectorAll('.attempt-dot');
+  dots.forEach((d,i)=>d.classList.toggle('used', i < attempts));
+}
+
+function checkLockoutState(){
+  const lo=getLockout();
+  if(lo.lockedUntil > Date.now()){
+    const rem=Math.ceil((lo.lockedUntil-Date.now())/60000);
+    showLockout(rem);
+    return true;
+  }
+  renderAttemptDots(lo.attempts||0);
+  return false;
+}
+
+function showLockout(minRemaining){
+  const bar=document.getElementById('lockout-bar');
+  bar.textContent=`ログインを${MAX_ATTEMPTS}回失敗しました。${minRemaining}分後に再試行できます。`;
+  bar.classList.add('show');
+  document.getElementById('login-pw').disabled=true;
+  document.querySelector('.login-btn').disabled=true;
+  renderAttemptDots(MAX_ATTEMPTS);
+  // カウントダウン更新
+  clearInterval(window._lockTimer);
+  window._lockTimer=setInterval(()=>{
+    const rem=Math.ceil((getLockout().lockedUntil-Date.now())/60000);
+    if(rem<=0){
+      clearInterval(window._lockTimer);
+      clearLockout();
+      bar.classList.remove('show');
+      document.getElementById('login-pw').disabled=false;
+      document.querySelector('.login-btn').disabled=false;
+      renderAttemptDots(0);
+      bar.textContent='';
+    } else {
+      bar.textContent=`ログインを${MAX_ATTEMPTS}回失敗しました。${rem}分後に再試行できます。`;
+    }
+  },10000);
+}
+
+async function initLogin(){
+  if(!localStorage.getItem('admin_pw_hash')){
+    localStorage.setItem('admin_pw_hash',await sha256('shirushi2025'));
+  }
+  // セッション有効期限チェック
+  const sess=JSON.parse(sessionStorage.getItem('admin_session')||'null');
+  if(sess && sess.exp > Date.now()){
+    showDashboard();
+    return;
+  }
+  sessionStorage.removeItem('admin_session');
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.body.style.overflow='hidden';
+  checkLockoutState();
+  setTimeout(()=>document.getElementById('login-pw').focus(),200);
+}
+
+async function doLogin(){
+  const pw=document.getElementById('login-pw').value;
+  const errEl=document.getElementById('login-err');
+  if(!pw){errEl.textContent='パスワードを入力してください';return;}
+  if(checkLockoutState()) return;
+
+  const btn=document.querySelector('.login-btn');
+  btn.classList.add('loading');btn.disabled=true;
+  await new Promise(r=>setTimeout(r,600)); // 短い遅延（タイミング攻撃対策）
+
+  const h=await sha256(pw);
+  btn.classList.remove('loading');btn.disabled=false;
+
+  if(h===localStorage.getItem('admin_pw_hash')){
+    clearLockout();
+    const exp=Date.now()+SESSION_TTL;
+    sessionStorage.setItem('admin_session',JSON.stringify({ok:true,exp}));
+    addLoginLog(true,'ログイン成功');
+    document.getElementById('login-screen').classList.add('hidden');
+    document.body.style.overflow='';
+    showDashboard();
+  } else {
+    const lo=getLockout();
+    lo.attempts=(lo.attempts||0)+1;
+    if(lo.attempts>=MAX_ATTEMPTS){
+      lo.lockedUntil=Date.now()+LOCKOUT_MS;
+      addLoginLog(false,`${MAX_ATTEMPTS}回失敗 → ロックアウト`);
+    } else {
+      addLoginLog(false,`失敗 ${lo.attempts}/${MAX_ATTEMPTS}回目`);
+    }
+    setLockout(lo);
+    renderAttemptDots(lo.attempts);
+    if(lo.attempts>=MAX_ATTEMPTS){
+      showLockout(30);
+    } else {
+      const rem=MAX_ATTEMPTS-lo.attempts;
+      errEl.textContent=`パスワードが正しくありません（あと${rem}回失敗するとロック）`;
+    }
+    document.getElementById('login-pw').value='';
+    document.getElementById('login-pw').focus();
+    const card=document.querySelector('.login-card');
+    card.style.transform='translateX(-8px)';
+    setTimeout(()=>{card.style.transition='transform .08s';card.style.transform='translateX(8px)';},80);
+    setTimeout(()=>{card.style.transform='translateX(-4px)';},160);
+    setTimeout(()=>{card.style.transform='translateX(0)';card.style.transition='';},240);
+  }
+}
+
+function doLogout(){
+  if(!confirm('ログアウトしますか？'))return;
+  addLoginLog(true,'手動ログアウト');
+  sessionStorage.removeItem('admin_session');
+  location.reload();
+}
+
+function showDashboard(){
+  loadConfig();
+  renderOverview();
+  renderLoginLog();
+  // セッション残り時間を表示
+  updateSessionTimer();
+  setInterval(updateSessionTimer,60000);
+}
+
+function updateSessionTimer(){
+  const sess=JSON.parse(sessionStorage.getItem('admin_session')||'null');
+  if(!sess) return;
+  const rem=Math.ceil((sess.exp-Date.now())/60000);
+  const h=Math.floor(rem/60), m=rem%60;
+  const el=document.getElementById('session-timer');
+  if(el) el.textContent=`セッション残り ${h}時間${m}分`;
+}
+
+function renderLoginLog(){
+  const logs=JSON.parse(localStorage.getItem('admin_login_log')||'[]');
+  const el=document.getElementById('login-log-list');
+  if(!el) return;
+  el.innerHTML=logs.length===0
+    ?'<div class="login-log-item">ログなし</div>'
+    :logs.map(l=>`<div class="login-log-item">${l.ok?'✓':'✗'} ${l.time} ${l.detail}</div>`).join('');
+}
+
+/* パスワード変更モーダル */
+function openPwModal(){document.getElementById('pw-modal').classList.remove('hidden');}
+function closePwModal(){document.getElementById('pw-modal').classList.add('hidden');document.getElementById('new-pw1').value='';document.getElementById('new-pw2').value='';updatePwStrength('');}
+
+function updatePwStrength(pw){
+  const bar=document.getElementById('pw-strength-bar');
+  const lbl=document.getElementById('pw-strength-lbl');
+  if(!bar) return;
+  let score=0;
+  if(pw.length>=8) score++;
+  if(pw.length>=12) score++;
+  if(/[A-Z]/.test(pw)) score++;
+  if(/[0-9]/.test(pw)) score++;
+  if(/[^A-Za-z0-9]/.test(pw)) score++;
+  const levels=[
+    {w:'0%',c:'transparent',t:''},
+    {w:'25%',c:'#D4826A',t:'弱い'},
+    {w:'50%',c:'#C9A84C',t:'普通'},
+    {w:'75%',c:'#8FAF9A',t:'強い'},
+    {w:'100%',c:'#4D9A58',t:'非常に強い'},
+  ];
+  const lv=levels[Math.min(score,4)];
+  bar.style.width=lv.w; bar.style.background=lv.c;
+  lbl.textContent=lv.t;
+}
+
+async function savePwChange(){
+  const cur=document.getElementById('cur-pw').value;
+  const p1=document.getElementById('new-pw1').value;
+  const p2=document.getElementById('new-pw2').value;
+  const errEl=document.getElementById('pw-change-err');
+  if(!cur||!p1||!p2){errEl.textContent='すべて入力してください';return;}
+  if(p1!==p2){errEl.textContent='新しいパスワードが一致しません';return;}
+  if(p1.length<8){errEl.textContent='8文字以上で設定してください';return;}
+  const curH=await sha256(cur);
+  if(curH!==localStorage.getItem('admin_pw_hash')){errEl.textContent='現在のパスワードが正しくありません';return;}
+  const newH=await sha256(p1);
+  localStorage.setItem('admin_pw_hash',newH);
+  addLoginLog(true,'パスワード変更');
+  closePwModal();
+  toast('✓ パスワードを変更しました');
+}
+
+/* コンソールからも変更可能（後方互換） */
+async function changeAdminPassword(newPw){
+  if(!newPw||newPw.length<8){console.error('8文字以上で設定してください');return;}
+  localStorage.setItem('admin_pw_hash',await sha256(newPw));
+  console.log('✓ パスワードを変更しました');
+}
+/* ══════════════════════════════════════════
+   WORD FILTER
+══════════════════════════════════════════ */
+const F_KEY='shirushi_word_filter';
+const M_KEY='shirushi_filter_msg';
+const DEF_WORDS={
+  ja:['死ね','殺す','消えろ','うざい','きもい','最悪','ゴミ','クズ','バカ','死にたい','消えたい','自殺','自傷'],
+  en:['die','kill','hate','ugly','loser','worthless','idiot','stupid','trash','self-harm','suicide'],
+};
+const DEF_MSG={main:'ちょっと疲れてるみたい。\n自分を労って過ごしてね。',sub:'このしるしは、あなただけのアーカイブに残っています。'};
+let fWords={ja:[],en:[]},fMsg={...DEF_MSG},fHits=0,fLog=[];
+
+function loadFilter(){
+  const s=localStorage.getItem(F_KEY);
+  fWords=s?JSON.parse(s):{ja:[...DEF_WORDS.ja],en:[...DEF_WORDS.en]};
+  const sm=localStorage.getItem(M_KEY);
+  fMsg=sm?JSON.parse(sm):{...DEF_MSG};
+}
+function saveFilter(){localStorage.setItem(F_KEY,JSON.stringify(fWords));}
+
+function renderFilter(){
+  loadFilter();
+  document.getElementById('flt-count').textContent=fWords.ja.length+fWords.en.length;
+  document.getElementById('flt-hits').textContent=fHits;
+  document.getElementById('ja-num').textContent=fWords.ja.length;
+  document.getElementById('en-num').textContent=fWords.en.length;
+  ['ja','en'].forEach(l=>{
+    document.getElementById(l+'-tags').innerHTML=fWords[l].map((w,i)=>`<span class="filter-tag">${esc(w)}<button class="tag-del" onclick="removeWord('${l}',${i})">×</button></span>`).join('');
+  });
+  document.getElementById('filter-msg-main').value=fMsg.main;
+  document.getElementById('filter-msg-sub').value=fMsg.sub;
+  updateMsgPreview();
+  const logEl=document.getElementById('filter-log');
+  logEl.innerHTML=fLog.length===0
+    ?'<tr><td class="mono" colspan="4" style="text-align:center;color:var(--sub)">検知ログはまだありません</td></tr>'
+    :fLog.map(l=>`<tr><td class="mono">${l.time}</td><td><span class="filter-tag" style="margin:0">${esc(l.word)}</span></td><td style="font-size:12px;color:var(--sub)">${l.masked}</td><td><span class="chip chip-exp">非公開保存</span></td></tr>`).join('');
+}
+function addWord(lang){
+  const inp=document.getElementById(lang+'-input');
+  const w=inp.value.trim();
+  if(!w){toast('ワードを入力してください');return;}
+  if(fWords[lang].includes(w)){toast('すでに登録されています');inp.value='';return;}
+  fWords[lang].push(w);saveFilter();inp.value='';renderFilter();toast(`「${w}」を追加しました`);
+}
+function removeWord(lang,idx){
+  const w=fWords[lang][idx];fWords[lang].splice(idx,1);saveFilter();renderFilter();toast(`「${w}」を削除しました`);
+}
+function updateMsgPreview(){
+  const main=document.getElementById('filter-msg-main').value;
+  const sub=document.getElementById('filter-msg-sub').value;
+  document.getElementById('prev-main').innerHTML=esc(main).replace(/\n/g,'<br>');
+  document.getElementById('prev-sub').textContent=sub;
+  document.getElementById('flt-msg-kpi').textContent=main.split('\n')[0].substring(0,18)+(main.length>18?'…':'');
+}
+function saveMsgSettings(){
+  fMsg.main=document.getElementById('filter-msg-main').value;
+  fMsg.sub=document.getElementById('filter-msg-sub').value;
+  localStorage.setItem(M_KEY,JSON.stringify(fMsg));toast('メッセージ設定を保存しました');
+}
+
+/* アプリ側から呼ぶ公開API */
+function checkText(text){
+  loadFilter();
+  const lower=text.toLowerCase().replace(/\s/g,'');
+  for(const w of fWords.ja){if(text.includes(w))return blocked(w);}
+  for(const w of fWords.en){if(lower.includes(w.toLowerCase()))return blocked(w);}
+  return{blocked:false,word:null};
+}
+function blocked(word){
+  fHits++;
+  const now=new Date();
+  const ts=`${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  fLog.unshift({time:ts,word,masked:'****（非公開）'});
+  if(fLog.length>20)fLog.pop();
+  return{blocked:true,word,message:fMsg};
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* PAGE META & RENDER hook */
+PG_META['filter']=['禁止ワード設定','フィルタリングとユーザーへのメッセージを管理します'];
+const _renderPg=renderPg;
+async function renderPg(id){if(id==='filter'){renderFilter();return;}await _renderPg(id);}
+
+/* ── INIT ── */
+initLogin();
+
+</script>
+</body>
+</html>
