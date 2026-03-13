@@ -791,17 +791,7 @@ async function fetchUsers(){
 }
 
 /* ── RENDER ── */
-async function renderPg(id){
-  if(id==='overview')await renderOverview();
-  if(id==='posts')await renderPosts();
-  if(id==='citymap')renderCityMap();
-  if(id==='users')await renderUsers();
-  if(id==='moderation')renderMod();
-  if(id==='premium')renderPremium();
-  if(id==='privacy')renderPrivacy();
-  if(id==='export')renderExport();
-  if(id==='schema')renderSchema();
-}
+/* renderPg defined below */
 
 const COLORS=[
   {hex:'#C85040',name:'深い赤',pct:8},{hex:'#D4826A',name:'珊瑚',pct:22},{hex:'#C9A84C',name:'金',pct:18},
@@ -1396,8 +1386,18 @@ function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g
 
 /* PAGE META & RENDER hook */
 PG_META['filter']=['禁止ワード設定','フィルタリングとユーザーへのメッセージを管理します'];
-const _renderPg=renderPg;
-async function renderPg(id){if(id==='filter'){renderFilter();return;}await _renderPg(id);}
+async function renderPg(id){
+  if(id==='filter'){renderFilter();return;}
+  if(id==='overview')return await renderOverview();
+  if(id==='posts')return await renderPosts();
+  if(id==='citymap')return renderCityMap();
+  if(id==='users')return await renderUsers();
+  if(id==='moderation')return renderMod();
+  if(id==='premium')return renderPremium();
+  if(id==='privacy')return renderPrivacy();
+  if(id==='export')return renderExport();
+  if(id==='schema')return renderSchema();
+}
 
 /* ── INIT ── */
 initLogin();
