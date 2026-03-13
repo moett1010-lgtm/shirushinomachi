@@ -808,31 +808,88 @@ const COLORS=[
   {hex:'#8CC870',name:'若草',pct:12},{hex:'#7FA8BE',name:'空',pct:19},{hex:'#7888BC',name:'藤',pct:12},{hex:'#7A8A92',name:'霧',pct:9},
 ];
 
+async function fetchWeeklyChart(){
+  if(!isLive) return WEEKLY;
+  try{
+    const days=[];
+    const labels=['月','火','水','木','金','土','日'];
+    for(let i=6;i>=0;i--){
+      const d=new Date(); d.setDate(d.getDate()-i);
+      const from=new Date(d); from.setHours(0,0,0,0);
+      const to=new Date(d); to.setHours(23,59,59,999);
+      const{count}=await sbFetch('shirushi_posts',`select=count&created_at=gte.${from.toISOString()}&created_at=lte.${to.toISOString()}`);
+      days.push({d:labels[6-i],v:pCount(count)});
+    }
+    return days;
+  }catch(e){return WEEKLY;}
+}
+
+async function fetchColorDist(){
+  if(!isLive) return COLORS;
+  try{
+    const{data}=await sbFetch('shirushi_posts','select=color_code');
+    if(!data||data.length===0) return COLORS;
+    const total=data.length;
+    const counts={};
+    data.forEach(p=>{counts[p.color_code]=(counts[p.color_code]||0)+1;});
+    return COLORS.map(c=>({...c,pct:Math.round(((counts[c.hex]||0)/total)*100)||0}));
+  }catch(e){return COLORS;}
+}
+
+async function fetchShapeDist(){
+  if(!isLive) return null;
+  try{
+    const{data}=await sbFetch('shirushi_posts','select=shape');
+    if(!data||data.length===0) return null;
+    const total=data.length;
+    const counts={};
+    data.forEach(p=>{counts[p.shape]=(counts[p.shape]||0)+1;});
+    return counts;
+  }catch(e){return null;}
+}
+
 async function renderOverview(){
   renderBanner();
   const kpi=await fetchKPI();
-  document.getElementById('kpi-grid').innerHTML=[
-    {l:'総ユーザー数',v:kpi.users.toLocaleString(),d:'▲ +12 今週',c:'up',a:'var(--deep)'},
-    {l:'総投稿数（累計）',v:kpi.posts.toLocaleString(),d:'▲ +84 今週',c:'up',a:'var(--coral)'},
-    {l:'今日のしるし（公開中）',v:kpi.live.toLocaleString(),d:'▲ +5 昨日比',c:'up',a:'var(--gold)'},
-    {l:'共鳴数（今週）',v:kpi.resonance.toLocaleString(),d:'▼ −8 先週比',c:'dn',a:'var(--blue)'},
-  ].map(k=>`<div class="kpi" style="--acc:${k.a}"><div class="kpi-lbl">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-delta ${k.c}">${k.d}</div></div>`).join('');
-  // chart
-  const mx=Math.max(...WEEKLY.map(w=>w.v));
-  const pts=WEEKLY.map((w,i)=>({x:30+i*(480/6),y:20+(1-w.v/mx)*80,d:w.d}));
+
+  // KPIカード（実データの場合は増減を非表示）
+  const kpiItems=[
+    {l:'総ユーザー数',     v:kpi.users.toLocaleString(),     d:isLive?'累計':     '▲ +12 今週', c:isLive?'':    'up', a:'var(--deep)'},
+    {l:'総投稿数（累計）', v:kpi.posts.toLocaleString(),     d:isLive?'累計投稿数':'▲ +84 今週', c:isLive?'':    'up', a:'var(--coral)'},
+    {l:'今日のしるし（公開中）',v:kpi.live.toLocaleString(), d:isLive?'公開中':   '▲ +5 昨日比', c:isLive?'':    'up', a:'var(--gold)'},
+    {l:'共鳴数（今週）',   v:kpi.resonance.toLocaleString(),d:isLive?'今週':     '▼ −8 先週比', c:isLive?'':    'dn', a:'var(--blue)'},
+  ];
+  document.getElementById('kpi-grid').innerHTML=kpiItems.map(k=>`<div class="kpi" style="--acc:${k.a}"><div class="kpi-lbl">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-delta ${k.c}">${k.d}</div></div>`).join('');
+
+  // 週次グラフ（実データ）
+  const weekly=await fetchWeeklyChart();
+  const mx=Math.max(...weekly.map(w=>w.v),1);
+  const pts=weekly.map((w,i)=>({x:30+i*(480/6),y:20+(1-w.v/mx)*80,d:w.d,v:w.v}));
   const ld='M'+pts.map(p=>`${p.x},${p.y.toFixed(1)}`).join(' L');
   document.getElementById('c-area').setAttribute('d',ld+` L${pts[pts.length-1].x},105 L${pts[0].x},105Z`);
   document.getElementById('c-line').setAttribute('d',ld);
-  document.getElementById('c-dots').innerHTML=pts.map((p,i)=>`<circle cx="${p.x}" cy="${p.y.toFixed(1)}" r="4" fill="${i===pts.length-1?'#D4826A':'#2C4A3E'}"/>`).join('');
+  document.getElementById('c-dots').innerHTML=pts.map((p,i)=>`<circle cx="${p.x}" cy="${p.y.toFixed(1)}" r="4" fill="${i===pts.length-1?'#D4826A':'#2C4A3E'}"><title>${p.d}: ${p.v}件</title></circle>`).join('');
   document.getElementById('c-lbls').innerHTML=pts.map(p=>`<text x="${p.x}" y="124" text-anchor="middle" font-size="10.5" fill="#9AA890" font-family="DM Mono,monospace">${p.d}</text>`).join('');
-  // emo bars
+
+  // 感情の温度分布（実データ）
+  const colorDist=await fetchColorDist();
   const eb=document.getElementById('emo-bars');
-  eb.innerHTML=COLORS.map(c=>`<div class="bar-row"><div class="emo-dot" style="background:${c.hex}"></div><div class="bar-lbl">${c.name}</div><div class="bar-track"><div class="bar-fill" style="width:0%;background:${c.hex}" data-w="${c.pct}"></div></div><div class="bar-pct">${c.pct}%</div></div>`).join('');
+  eb.innerHTML=colorDist.map(c=>`<div class="bar-row"><div class="emo-dot" style="background:${c.hex}"></div><div class="bar-lbl">${c.name}</div><div class="bar-track"><div class="bar-fill" style="width:0%;background:${c.hex}" data-w="${c.pct}"></div></div><div class="bar-pct">${c.pct}%</div></div>`).join('');
   setTimeout(()=>eb.querySelectorAll('.bar-fill').forEach(b=>b.style.width=b.dataset.w+'%'),80);
-  // shape legend
-  document.getElementById('shape-legend').innerHTML=[
-    ['#D4826A','△ 三角 28%'],['#C9A84C','○ 丸 24%'],['#7FA8BE','〜 波 19%'],['#8FAF9A','□ 四角 14%'],['#8888BC','∩ アーチ 10%']
-  ].map(([c,t])=>`<div style="display:flex;align-items:center;gap:7px;font-size:11px;color:var(--sub)"><div style="width:10px;height:10px;border-radius:50%;background:${c};flex-shrink:0"></div>${t}</div>`).join('');
+
+  // しるしの形内訳（実データ）
+  const shapeDist=await fetchShapeDist();
+  const SHAPE_NAMES={ring:'○ 丸',sq:'□ 四角',tri:'△ 三角',wave:'〜 波',lines:'‖ 線',arch:'∩ アーチ'};
+  const SHAPE_COLORS={ring:'#C9A84C',sq:'#8FAF9A',tri:'#D4826A',wave:'#7FA8BE',lines:'#8888BC',arch:'#7A8A92'};
+  if(shapeDist){
+    const total=Object.values(shapeDist).reduce((a,b)=>a+b,0)||1;
+    const entries=Object.entries(shapeDist).sort((a,b)=>b[1]-a[1]);
+    document.getElementById('shape-legend').innerHTML=entries.map(([s,n])=>`<div style="display:flex;align-items:center;gap:7px;font-size:11px;color:var(--sub)"><div style="width:10px;height:10px;border-radius:50%;background:${SHAPE_COLORS[s]||'#ccc'};flex-shrink:0"></div>${SHAPE_NAMES[s]||s} ${Math.round(n/total*100)}%</div>`).join('');
+  } else {
+    document.getElementById('shape-legend').innerHTML=[
+      ['#D4826A','△ 三角 28%'],['#C9A84C','○ 丸 24%'],['#7FA8BE','〜 波 19%'],['#8FAF9A','□ 四角 14%'],['#8888BC','∩ アーチ 10%']
+    ].map(([c,t])=>`<div style="display:flex;align-items:center;gap:7px;font-size:11px;color:var(--sub)"><div style="width:10px;height:10px;border-radius:50%;background:${c};flex-shrink:0"></div>${t}</div>`).join('');
+  }
 }
 
 async function renderPosts(){
